@@ -554,6 +554,15 @@ def index_document(
         # Pass notifier for progress tracking
         chunk_count = indexer.index_document(doc, notifier=notifier)
 
+        # CRITICAL: Invalidate the cached retrieval pipeline so the next
+        # search_kb() call reopens the LanceDB table and sees the new data.
+        # The pipeline and indexer maintain separate table handles — without
+        # this, searches after indexing return stale results.
+        global _pipeline
+        if _pipeline is not None:
+            logger.info("Invalidating retrieval pipeline to pick up newly indexed data")
+            _pipeline = None
+
         success_msg = f"Successfully indexed {chunk_count} chunks from {path.name}"
         if enable_sanitization:
             success_msg += f" (sanitized)"
