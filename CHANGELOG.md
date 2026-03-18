@@ -5,6 +5,18 @@ All notable changes to the Vex RAG Plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-03-18
+
+### Fixed
+- **LanceDB concurrent writer corruption** — added exclusive file lock (`fcntl.flock`) to all write operations. LanceDB does not handle concurrent writers; when MCP server and CLI indexer ran simultaneously, it caused fragment corruption and FTS index failures. Lock file at `<db_path>/.write.lock` with 30s timeout.
+  - `index_chunks()` — table create/append locked
+  - `index_document()` — dedup check-then-delete locked (TOCTOU fix)
+  - `delete_by_file()` — file deletion locked
+  - `delete_by_project()` — project deletion locked
+  - `create_fts_index()` — FTS index creation locked
+  - `rebuild_index()` MCP tool — table drop locked
+  - Affects both PAI and ATHENA instances (shared codebase)
+
 ## [1.4.0] - 2026-03-18
 
 ### Added

@@ -691,15 +691,23 @@ def rebuild_index() -> str:
         _pipeline = None
 
         # Import lancedb to drop the table directly
+        # Acquire write lock to prevent concurrent access during table drop
+        import fcntl
         try:
             import lancedb
-            db = lancedb.connect(DB_PATH)
-            table_names = db.table_names()
-            if "knowledge_base" in table_names:
-                db.drop_table("knowledge_base")
-                logger.info("Dropped existing knowledge_base table")
-            else:
-                logger.info("No existing knowledge_base table found — fresh start")
+            lock_path = Path(DB_PATH) / ".write.lock"
+            with open(lock_path, 'w') as lock_fd:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+                try:
+                    db = lancedb.connect(DB_PATH)
+                    table_names = db.table_names()
+                    if "knowledge_base" in table_names:
+                        db.drop_table("knowledge_base")
+                        logger.info("Dropped existing knowledge_base table")
+                    else:
+                        logger.info("No existing knowledge_base table found — fresh start")
+                finally:
+                    fcntl.flock(lock_fd, fcntl.LOCK_UN)
         except Exception as e:
             logger.warning(f"Could not drop table via lancedb (continuing): {e}")
 

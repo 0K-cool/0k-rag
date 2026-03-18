@@ -13,9 +13,11 @@ import pyarrow as pa
 import logging
 import os
 import yaml
+import fcntl
 from pathlib import Path
 from typing import List, Dict, Optional, TYPE_CHECKING
 from datetime import datetime
+from contextlib import contextmanager
 import uuid
 import hashlib
 import time
@@ -194,9 +196,48 @@ class KnowledgeBaseIndexer:
         self.table = None
         self.table_name = "knowledge_base"
         self.indexed_count = 0
+        self._lock_file = None
+        self._lock_path = self.db_path / ".write.lock"
 
         # Create database directory if needed
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    @contextmanager
+    def _write_lock(self, timeout: float = 30.0):
+        """
+        Acquire exclusive file lock for LanceDB writes.
+        LanceDB does not handle concurrent writers — this prevents
+        fragment corruption when MCP server and CLI indexer run simultaneously.
+        """
+        lock_path = self._lock_path
+        lock_fd = None
+        try:
+            lock_fd = open(lock_path, 'w')
+            start = time.monotonic()
+            while True:
+                try:
+                    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    lock_fd.write(f"{os.getpid()}\n")
+                    lock_fd.flush()
+                    logger.debug(f"Write lock acquired by PID {os.getpid()}")
+                    break
+                except (IOError, OSError):
+                    elapsed = time.monotonic() - start
+                    if elapsed >= timeout:
+                        raise TimeoutError(
+                            f"Could not acquire write lock on {lock_path} after {timeout}s. "
+                            f"Another process may be writing to this LanceDB database."
+                        )
+                    time.sleep(0.5)
+            yield
+        finally:
+            if lock_fd is not None:
+                try:
+                    fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                    lock_fd.close()
+                    logger.debug(f"Write lock released by PID {os.getpid()}")
+                except Exception:
+                    pass
 
     def initialize(self):
         """Initialize or connect to LanceDB database"""
@@ -322,23 +363,27 @@ class KnowledgeBaseIndexer:
             return 0
 
         try:
-            # Create or append to table
-            if self.table is None:
-                # Create new table
-                self.table = self.db.create_table(
-                    self.table_name,
-                    data=data,
-                    schema=self._create_schema()
-                )
-                logger.info(f"Created table '{self.table_name}' with {len(data)} chunks")
-            else:
-                # Append to existing table
-                self.table.add(data)
-                logger.info(f"Added {len(data)} chunks to '{self.table_name}'")
+            with self._write_lock():
+                # Create or append to table
+                if self.table is None:
+                    # Create new table
+                    self.table = self.db.create_table(
+                        self.table_name,
+                        data=data,
+                        schema=self._create_schema()
+                    )
+                    logger.info(f"Created table '{self.table_name}' with {len(data)} chunks")
+                else:
+                    # Append to existing table
+                    self.table.add(data)
+                    logger.info(f"Added {len(data)} chunks to '{self.table_name}'")
 
-            self.indexed_count += len(data)
-            return len(data)
+                self.indexed_count += len(data)
+                return len(data)
 
+        except TimeoutError as e:
+            logger.error(f"Write lock timeout: {e}")
+            return 0
         except Exception as e:
             logger.error(f"Failed to index chunks: {e}")
             return 0
@@ -463,27 +508,33 @@ class KnowledgeBaseIndexer:
             logger.info(f"Document content hash: {content_hash[:16]}...")
 
             # Check for existing chunks from this document (content-based deduplication)
+            # Write lock protects the check-then-delete to prevent TOCTOU races
             if self.table is not None:
                 try:
-                    # Check if document already indexed
-                    # Security: Sanitize file_path to prevent SQL injection (VUL-001 fix)
-                    safe_path = _sanitize_sql_value(document.file_path)
-                    existing = self.table.search().where(f"file_path = '{safe_path}'").limit(1).to_list()
-                    if existing:
-                        existing_hash = existing[0].get('content_hash', None)
+                    with self._write_lock():
+                        # Check if document already indexed
+                        # Security: Sanitize file_path to prevent SQL injection (VUL-001 fix)
+                        safe_path = _sanitize_sql_value(document.file_path)
+                        existing = self.table.search().where(f"file_path = '{safe_path}'").limit(1).to_list()
+                        if existing:
+                            existing_hash = existing[0].get('content_hash', None)
 
-                        if existing_hash == content_hash:
-                            # Content unchanged - skip re-indexing
-                            count_result = self.table.count_rows(f"file_path = '{safe_path}'")
-                            logger.info(f"Document unchanged (hash match) - skipping re-indexing of {count_result} chunks")
-                            notifier.finish(success=True, message=f"Skipped (unchanged): {count_result} existing chunks")
-                            return count_result
-                        else:
-                            # Content changed - delete old chunks and re-index
-                            count_result = self.table.count_rows(f"file_path = '{safe_path}'")
-                            logger.info(f"Document content changed - removing {count_result} existing chunks before re-indexing")
-                            self.table.delete(f"file_path = '{safe_path}'")
-                            logger.info(f"Deleted {count_result} existing chunks for {document.file_path}")
+                            if existing_hash == content_hash:
+                                # Content unchanged - skip re-indexing
+                                count_result = self.table.count_rows(f"file_path = '{safe_path}'")
+                                logger.info(f"Document unchanged (hash match) - skipping re-indexing of {count_result} chunks")
+                                notifier.finish(success=True, message=f"Skipped (unchanged): {count_result} existing chunks")
+                                return count_result
+                            else:
+                                # Content changed - delete old chunks and re-index
+                                count_result = self.table.count_rows(f"file_path = '{safe_path}'")
+                                logger.info(f"Document content changed - removing {count_result} existing chunks before re-indexing")
+                                self.table.delete(f"file_path = '{safe_path}'")
+                                logger.info(f"Deleted {count_result} existing chunks for {document.file_path}")
+                except TimeoutError as e:
+                    logger.error(f"Write lock timeout during dedup check: {e}")
+                    notifier.finish(success=False, message=f"Write lock timeout: {e}")
+                    return 0
                 except Exception as e:
                     logger.warning(f"Could not check for existing chunks: {e}")
 
@@ -627,12 +678,16 @@ class KnowledgeBaseIndexer:
             return 0
 
         try:
-            # Security: Sanitize file_path to prevent SQL injection (VUL-001 fix)
-            safe_path = _sanitize_sql_value(file_path)
-            self.table.delete(f"file_path = '{safe_path}'")
-            logger.info(f"Deleted chunks from {file_path}")
-            return 1  # LanceDB doesn't return count
+            with self._write_lock():
+                # Security: Sanitize file_path to prevent SQL injection (VUL-001 fix)
+                safe_path = _sanitize_sql_value(file_path)
+                self.table.delete(f"file_path = '{safe_path}'")
+                logger.info(f"Deleted chunks from {file_path}")
+                return 1  # LanceDB doesn't return count
 
+        except TimeoutError as e:
+            logger.error(f"Write lock timeout: {e}")
+            return 0
         except Exception as e:
             logger.error(f"Delete failed: {e}")
             return 0
@@ -651,12 +706,16 @@ class KnowledgeBaseIndexer:
             return 0
 
         try:
-            # Security: Sanitize project to prevent SQL injection (VUL-001 fix)
-            safe_project = _sanitize_sql_value(project)
-            self.table.delete(f"source_project = '{safe_project}'")
-            logger.info(f"Deleted chunks from project {project}")
-            return 1
+            with self._write_lock():
+                # Security: Sanitize project to prevent SQL injection (VUL-001 fix)
+                safe_project = _sanitize_sql_value(project)
+                self.table.delete(f"source_project = '{safe_project}'")
+                logger.info(f"Deleted chunks from project {project}")
+                return 1
 
+        except TimeoutError as e:
+            logger.error(f"Write lock timeout: {e}")
+            return 0
         except Exception as e:
             logger.error(f"Delete failed: {e}")
             return 0
@@ -686,7 +745,10 @@ class KnowledgeBaseIndexer:
             return
 
         try:
-            self.table.create_fts_index("contextual_chunk")
-            logger.info(f"Created full-text search index")
+            with self._write_lock():
+                self.table.create_fts_index("contextual_chunk")
+                logger.info(f"Created full-text search index")
+        except TimeoutError as e:
+            logger.error(f"Write lock timeout during FTS creation: {e}")
         except Exception as e:
             logger.error(f"FTS index creation failed: {e}")
