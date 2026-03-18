@@ -66,6 +66,9 @@ class RetrievalPipeline:
         self.vector_search = VectorSearch(self.table, self.embedder)
         self.bm25_search = BM25Search(self.table)
 
+        # Create FTS index for BM25 search (idempotent — skips if already exists)
+        self.bm25_search.create_index()
+
         # Initialize reranker
         self.reranker = None
         if enable_reranking:
