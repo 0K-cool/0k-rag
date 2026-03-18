@@ -590,18 +590,44 @@ def get_kb_stats() -> Dict[str, Any]:
     Get statistics about the Vex knowledge base.
 
     Returns total chunks, projects, files indexed, plus usage hints
-    for searching the knowledge base.
+    for searching the knowledge base. Also runs a live search health
+    check to detect corrupted LanceDB fragments that metadata-only
+    checks would miss.
 
     Returns:
-        Dictionary with KB stats and usage examples
+        Dictionary with KB stats, search health, and usage examples
 
     Tip: Use search_kb(query) to search the knowledge base.
+    If search_healthy is false, run rebuild_index() to fix.
     """
     logger.info("MCP stats request")
 
     try:
         pipeline = get_pipeline()
         stats = pipeline.get_stats()
+
+        # Search health check — exercise actual search path
+        search_healthy = False
+        search_error = None
+        try:
+            test_results = pipeline.retrieve("test", top_k=1, enable_bm25=False, verbose=False)
+            search_healthy = True
+        except Exception as e:
+            search_error = str(e)[:200]
+
+        stats["search_healthy"] = search_healthy
+        stats["search_error"] = search_error
+
+        # Validate FTS index files actually exist (not just metadata claim)
+        fts_actually_healthy = False
+        try:
+            indices_dir = os.path.join(pipeline.db_path, "knowledge_base.lance", "_indices")
+            if os.path.isdir(indices_dir) and os.listdir(indices_dir):
+                fts_actually_healthy = True
+        except Exception:
+            pass
+
+        stats["fts_healthy"] = fts_actually_healthy
 
         # Add usage hints (ATHENA feedback - help AI agents discover search)
         stats["usage_hint"] = "Use search_kb(query, top_k) tool to search the knowledge base"
@@ -612,13 +638,147 @@ def get_kb_stats() -> Dict[str, Any]:
         ]
         stats["help_resource"] = "vex://help"
 
-        logger.info(f"Stats retrieved: {stats['total_chunks']} total chunks")
+        logger.info(f"Stats retrieved: {stats['total_chunks']} total chunks, search_healthy={search_healthy}, fts_healthy={fts_actually_healthy}")
         return stats
 
     except Exception as e:
         error_msg = f"Stats retrieval failed: {str(e)}"
         logger.error(error_msg)
         return {"error": error_msg}
+
+
+@mcp.tool()
+def rebuild_index() -> str:
+    """
+    Rebuild the entire knowledge base from source files.
+
+    Drops the existing LanceDB table and re-indexes all documents
+    from the paths defined in .vex-rag.yml (auto_index_paths).
+    Use when search returns 0 results despite chunks being stored,
+    or when the database is corrupted.
+
+    WARNING: This is destructive — existing embeddings are regenerated.
+    Source documents are NOT affected.
+
+    Returns:
+        JSON with rebuild results (files indexed, chunks created, duration)
+    """
+    import time
+    import glob as glob_module
+
+    logger.info("MCP rebuild_index request — dropping and recreating knowledge base")
+
+    start_time = time.time()
+
+    # Read auto_index_paths from config
+    auto_index_paths = config.get('indexing', {}).get('auto_index_paths', [])
+    auto_index_extensions = config.get('indexing', {}).get('auto_index_extensions', ['.md'])
+
+    if not auto_index_paths:
+        return json.dumps({
+            "success": False,
+            "error": "No auto_index_paths defined in .vex-rag.yml. Add indexing.auto_index_paths to enable rebuild."
+        }, indent=2)
+
+    try:
+        # Step 1: Drop existing LanceDB table by re-initializing a fresh indexer
+        global _pipeline, _indexer
+
+        logger.info("Dropping existing knowledge base table...")
+
+        # Force fresh indexer (will recreate table on initialize)
+        _indexer = None
+        _pipeline = None
+
+        # Import lancedb to drop the table directly
+        try:
+            import lancedb
+            db = lancedb.connect(DB_PATH)
+            table_names = db.table_names()
+            if "knowledge_base" in table_names:
+                db.drop_table("knowledge_base")
+                logger.info("Dropped existing knowledge_base table")
+            else:
+                logger.info("No existing knowledge_base table found — fresh start")
+        except Exception as e:
+            logger.warning(f"Could not drop table via lancedb (continuing): {e}")
+
+        # Step 2: Re-initialize indexer (creates fresh table)
+        indexer = get_indexer()
+        loader = DocumentLoader()
+
+        # Step 3: Collect all .md files from auto_index_paths
+        files_to_index = []
+        config_dir = Path(os.getenv("RAG_CONFIG", ".vex-rag.yml"))
+        if not config_dir.is_absolute():
+            config_dir = Path.cwd() / config_dir
+        project_root = config_dir.parent
+
+        for index_path in auto_index_paths:
+            # Resolve relative paths from project root
+            resolved = Path(index_path)
+            if not resolved.is_absolute():
+                resolved = project_root / index_path
+
+            if resolved.is_file():
+                # Direct file reference
+                if any(str(resolved).endswith(ext) for ext in auto_index_extensions):
+                    files_to_index.append(resolved)
+            elif resolved.is_dir():
+                # Directory — recurse for all matching extensions
+                for ext in auto_index_extensions:
+                    files_to_index.extend(resolved.rglob(f"*{ext}"))
+            else:
+                logger.warning(f"rebuild_index: path not found, skipping: {resolved}")
+
+        # Deduplicate
+        files_to_index = list(set(files_to_index))
+        logger.info(f"rebuild_index: found {len(files_to_index)} files to index")
+
+        if not files_to_index:
+            return json.dumps({
+                "success": False,
+                "error": f"No files found matching {auto_index_extensions} in auto_index_paths: {auto_index_paths}"
+            }, indent=2)
+
+        # Step 4: Re-index all files
+        total_chunks = 0
+        indexed_files = []
+        failed_files = []
+
+        for file_path in sorted(files_to_index):
+            try:
+                doc = loader.load_file(str(file_path), PROJECT_NAME)
+                chunk_count = indexer.index_document(doc)
+                total_chunks += chunk_count
+                indexed_files.append(str(file_path.name))
+                logger.info(f"rebuild_index: indexed {file_path.name} ({chunk_count} chunks)")
+            except Exception as e:
+                failed_files.append({"file": str(file_path.name), "error": str(e)[:100]})
+                logger.error(f"rebuild_index: failed to index {file_path.name}: {e}")
+
+        # Step 5: Invalidate pipeline so next search opens fresh table
+        _pipeline = None
+
+        duration = time.time() - start_time
+
+        result = {
+            "success": True,
+            "files_indexed": len(indexed_files),
+            "chunks_created": total_chunks,
+            "duration_seconds": round(duration, 1),
+            "files": indexed_files,
+        }
+        if failed_files:
+            result["failed_files"] = failed_files
+
+        logger.info(f"rebuild_index complete: {len(indexed_files)} files, {total_chunks} chunks, {duration:.1f}s")
+        return json.dumps(result, indent=2)
+
+    except Exception as e:
+        error_msg = f"rebuild_index failed: {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({"success": False, "error": error_msg}, indent=2)
 
 
 if __name__ == "__main__":

@@ -309,9 +309,17 @@ index_document(
     enable_sanitization=True  # Optional, uses config default
 )
 
-# Get KB statistics (includes usage hints)
+# Get KB statistics (includes search health check)
 stats = get_kb_stats()
-# Returns: {total_chunks, projects, files, usage_hint, example_queries}
+# Returns: {total_chunks, projects, files, search_healthy, fts_healthy, usage_hint, example_queries}
+# search_healthy: false means vector search is broken — run rebuild_index()
+# fts_healthy: false means BM25 index files are missing on disk
+
+# Rebuild the knowledge base from source files (use when corrupted)
+rebuild_index()
+# Drops existing LanceDB table and re-indexes all files from auto_index_paths.
+# Source documents are never affected — only embeddings are regenerated.
+# Returns: {success, files_indexed, chunks_created, duration_seconds, files}
 ```
 
 ### MCP Resources
@@ -648,16 +656,40 @@ Example: 788 chunks = 3.2MB compressed (4KB per chunk avg)
 
 ## Troubleshooting
 
+### Corrupted LanceDB (search returns 0 results despite chunks being stored)
+
+This is the most common failure mode after an unclean shutdown or interrupted write.
+`get_kb_stats()` reports a non-zero chunk count but `search_healthy: false`.
+
+**Fix:**
+```python
+# In Claude Code — runs via MCP
+rebuild_index()
+```
+
+This drops the corrupted LanceDB table and re-indexes all source files from
+`auto_index_paths` in your `.vex-rag.yml`. Source documents are never touched —
+only the vector embeddings are regenerated.
+
+**`get_kb_stats()` shows `search_healthy: false`:**
+The vector search path is broken. Run `rebuild_index()` to fix.
+
+**`get_kb_stats()` shows `fts_healthy: false`:**
+The BM25/FTS index files are missing from disk. Run `rebuild_index()` to recreate them.
+
 ### Search returns no results
 
 **Diagnosis:**
-1. Check KB has chunks: `python -c "from rag import KnowledgeBaseIndexer; k=KnowledgeBaseIndexer('.vex-rag.yml'); print(k.get_stats())"`
-2. Verify MCP server running: Check Claude Code session
-3. Test direct search: `vex-search "test query"`
-4. Check Ollama running: `curl http://localhost:11434/api/tags`
+1. Check search health: `get_kb_stats()` — look at `search_healthy` and `fts_healthy`
+2. If `search_healthy: false`: run `rebuild_index()` (see above)
+3. If `search_healthy: true`: Check KB has chunks — `total_chunks` in stats output
+4. Verify MCP server running: Check Claude Code session
+5. Test direct search: `vex-search "test query"`
+6. Check Ollama running: `curl http://localhost:11434/api/tags`
 
 **Solutions:**
-- If no chunks: Index documents first (`vex-index docs/ --batch`)
+- If corrupted (`search_healthy: false`): Run `rebuild_index()`
+- If no chunks and healthy: Index documents first (`vex-index docs/ --batch`)
 - If MCP offline: Restart Claude Code session
 - If Ollama offline: `brew services restart ollama`
 - If config missing: Create `.vex-rag.yml` from examples

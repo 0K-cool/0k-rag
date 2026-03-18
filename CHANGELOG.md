@@ -5,6 +5,17 @@ All notable changes to the Vex RAG Plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-03-18
+
+### Added
+- **Search Health Check** in `get_kb_stats()` — exercises actual vector search path and reports `search_healthy: true/false`. Detects corrupted LanceDB fragments that metadata-only checks miss.
+- **FTS Index Validation** — verifies FTS/BM25 index files exist on disk before reporting `fts_enabled: true`
+- **`rebuild_index` MCP tool** — drops and recreates the knowledge base from source files. Use when search returns 0 results or database is corrupted. Source documents are never affected.
+
+### Fixed
+- **BM25/FTS index not created at startup** (v1.3.2) — `create_index()` now called eagerly at pipeline init
+- **Corrupted LanceDB detection** — `get_kb_stats()` previously reported healthy status even when vector search was broken due to missing fragment files
+
 ## [1.3.2] - 2026-03-18
 
 ### Fixed
