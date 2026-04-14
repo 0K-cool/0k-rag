@@ -31,6 +31,7 @@ from rag.indexing.embedder import Embedder
 from rag.retrieval.vector_search import VectorSearch
 from rag.retrieval.bm25_search import BM25Search
 from rag.retrieval.fusion import reciprocal_rank_fusion, get_fusion_stats
+from rag.retrieval.enhancers import apply_all_enhancers
 from rag.retrieval.reranker import LocalReranker
 
 
@@ -85,6 +86,7 @@ class RetrievalPipeline:
         bm25_limit: int = 20,
         fusion_limit: int = 10,
         enable_bm25: bool = True,
+        enable_enhancers: bool = True,
         filters: Optional[Dict] = None,
         verbose: bool = False
     ) -> List[Dict]:
@@ -185,6 +187,31 @@ class RetrievalPipeline:
             final_results = fused_results[:top_k]
             if verbose:
                 logger.info(f"4⃣  Reranking: Disabled")
+
+        # Step 5: Retrieval Enhancers (post-rerank boosting)
+        # Runs AFTER reranker so boosts modify rerank_score, not rrf_score
+        if enable_enhancers:
+            if verbose:
+                logger.info(f"5⃣  Applying retrieval enhancers...")
+
+            # Switch score key: enhancers boost whichever score is active
+            score_key = 'rerank_score' if self.enable_reranking else 'rrf_score'
+            for r in final_results:
+                if score_key not in r:
+                    r[score_key] = r.get('rrf_score', 0)
+
+            final_results = apply_all_enhancers(
+                final_results,
+                query,
+                score_key=score_key,
+                verbose=verbose
+            )
+
+            # Re-sort by the boosted score
+            final_results.sort(key=lambda x: x.get(score_key, 0), reverse=True)
+
+            if verbose:
+                logger.info(f"Enhancers applied to {len(final_results)} results")
 
         if verbose:
             print()

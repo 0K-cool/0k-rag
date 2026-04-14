@@ -199,7 +199,7 @@ Don't let the roadmap fool you - **vex-rag is production-ready NOW**:
 **What actually works (v1.1.0):**
 ```bash
 # 1. Clone repo
-git clone https://github.com/0K-cool/vex-rag.git ~/tools/vex-rag
+git clone https://github.com/0K-cool/0k-rag.git ~/tools/vex-rag
 
 # 2. Install Python package
 cd ~/tools/vex-rag
@@ -296,8 +296,8 @@ If you're considering using vex-rag as a reference for your own Claude Code plug
 ## 📞 Support & Community
 
 **Questions or Issues?**
-- GitHub Issues: https://github.com/0K-cool/vex-rag/issues
-- Documentation: https://github.com/0K-cool/vex-rag/blob/main/README.md
+- GitHub Issues: https://github.com/0K-cool/0k-rag/issues
+- Documentation: https://github.com/0K-cool/0k-rag/blob/main/README.md
 
 **Philosophy:**
 > "Truth in advertising. Build what works, document honestly, improve iteratively." - Vex 🦖⚡

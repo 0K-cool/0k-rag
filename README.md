@@ -43,7 +43,7 @@ A production-ready Retrieval-Augmented Generation (RAG) system designed for **10
 ```bash
 # Clone to tools directory
 cd ~/tools
-git clone https://github.com/0K-cool/vex-rag.git
+git clone https://github.com/0K-cool/0k-rag.git
 cd vex-rag
 ```
 
@@ -935,9 +935,9 @@ Inspired by:
 
 ## Support
 
-**Documentation:** [GitHub](https://github.com/0K-cool/vex-rag)
-**Issues:** [GitHub Issues](https://github.com/0K-cool/vex-rag/issues)
-**Discussions:** [GitHub Discussions](https://github.com/0K-cool/vex-rag/discussions)
+**Documentation:** [GitHub](https://github.com/0K-cool/0k-rag)
+**Issues:** [GitHub Issues](https://github.com/0K-cool/0k-rag/issues)
+**Discussions:** [GitHub Discussions](https://github.com/0K-cool/0k-rag/discussions)
 
 ---
 

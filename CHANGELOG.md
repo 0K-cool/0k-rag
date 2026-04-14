@@ -258,7 +258,7 @@ This project follows [Semantic Versioning](https://semver.org/):
 
 ## Links
 
-- **Repository:** https://github.com/0K-cool/vex-rag
-- **Issues:** https://github.com/0K-cool/vex-rag/issues
-- **Documentation:** https://github.com/0K-cool/vex-rag/blob/main/README.md
-- **Changelog:** https://github.com/0K-cool/vex-rag/blob/main/CHANGELOG.md
+- **Repository:** https://github.com/0K-cool/0k-rag
+- **Issues:** https://github.com/0K-cool/0k-rag/issues
+- **Documentation:** https://github.com/0K-cool/0k-rag/blob/main/README.md
+- **Changelog:** https://github.com/0K-cool/0k-rag/blob/main/CHANGELOG.md

@@ -1,0 +1,24 @@
+# ok-rag Core Dependencies (no reranker, no PII sanitization)
+# Python 3.11+
+#
+# Install: pip install -r requirements-core.txt
+# For full pipeline (100% benchmark): pip install -r requirements.txt
+
+# Vector Database
+lancedb>=0.5.0
+
+# Embeddings (Ollama client)
+ollama>=0.1.0
+
+# MCP Server
+fastmcp>=0.3.0
+
+# Configuration & Environment
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# Search & Ranking
+rank-bm25>=0.2.2
+
+# Numeric operations (embeddings)
+numpy>=1.24.0
