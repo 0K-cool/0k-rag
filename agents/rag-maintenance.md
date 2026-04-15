@@ -58,7 +58,7 @@ You are the **RAG Maintenance Agent** for the 0K-RAG Plugin. You specialize in:
 get_kb_stats()
 
 # Search knowledge base (test retrieval)
-vex-search "test query"
+0k-search "test query"
 
 # Check configuration
 cat .vex-rag.yml
@@ -70,20 +70,20 @@ cat .vex-rag.yml
 index_document(file_path="document.md", project="ProjectName")
 
 # Index via CLI
-vex-index document.md --project ProjectName
+0k-index document.md --project ProjectName
 
 # Batch indexing
-vex-index --pattern 'docs/**/*.md'
+0k-index --pattern 'docs/**/*.md'
 
 # Dry run to preview
-vex-index --pattern 'docs/**/*.pdf' --dry-run
+0k-index --pattern 'docs/**/*.pdf' --dry-run
 ```
 
 ### Search (CLI Testing)
 ```bash
 # Search KB from command line
-vex-search "query here"
-vex-search "query" --hybrid --rerank --top-k 10
+0k-search "query here"
+0k-search "query" --hybrid --rerank --top-k 10
 ```
 
 ### Backup/Restore
@@ -172,10 +172,10 @@ index_document(
 )
 
 # Via CLI (from project directory)
-vex-index path/to/document.md
+0k-index path/to/document.md
 
 # Batch indexing
-vex-index --pattern 'docs/**/*.pdf'
+0k-index --pattern 'docs/**/*.pdf'
 ```
 
 **Indexing Pipeline:**
@@ -198,7 +198,7 @@ vex-index --pattern 'docs/**/*.pdf'
 **Diagnosis:**
 1. Check KB has chunks: `get_kb_stats()`
 2. Verify MCP server running: Check Claude Code session
-3. Test direct search: `vex-search "test query"`
+3. Test direct search: `0k-search "test query"`
 4. Check Ollama running: `curl http://localhost:11434/api/tags`
 5. Verify configuration: `cat .vex-rag.yml`
 

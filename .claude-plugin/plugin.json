@@ -61,7 +61,7 @@
   },
 
   "notes": [
-    "CLI tools (vex-search, vex-index) installed via pip",
+    "CLI tools (0k-search, 0k-index) installed via pip",
     "Slash commands (/rag-search, /rag-index) available in conversations",
     "MCP server requires manual configuration in project .mcp.json",
     "See PLUGIN-STATUS.md for roadmap and planned features"

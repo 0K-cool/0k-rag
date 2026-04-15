@@ -23,7 +23,7 @@ Manually search the local knowledge base for relevant documentation.
 
 ## How It Works
 
-This command calls the `vex-search` CLI tool to query your local knowledge base:
+This command calls the `0k-search` CLI tool to query your local knowledge base:
 - Hybrid search (vector + BM25 + RRF)
 - BGE reranking for relevance
 - Top 5 results with citations

@@ -65,7 +65,7 @@ python -m spacy download en_core_web_sm
 
 **What Gets Installed:**
 - ✅ Python `rag` module (importable library)
-- ✅ CLI tools: `vex-search`, `vex-index` (added to PATH)
+- ✅ CLI tools: `0k-search`, `0k-index` (added to PATH)
 - ✅ MCP server: `mcp_server/vex_kb_server.py`
 - ✅ All dependencies from `pyproject.toml`
 
@@ -100,7 +100,7 @@ vim .vex-rag.yml
 mkdir -p lance_kb
 
 # Index your first documents
-vex-index docs/ --batch
+0k-index docs/ --batch
 ```
 
 ### 6. Setup MCP Server
@@ -142,8 +142,8 @@ After completing these steps, you have:
 
 **CLI Tools:**
 ```bash
-vex-search "your query here"              # Search knowledge base
-vex-index document.md --project MyProject # Index documents
+0k-search "your query here"              # Search knowledge base
+0k-index document.md --project MyProject # Index documents
 ```
 
 **MCP Server:**
@@ -276,16 +276,16 @@ For manual control during conversations, use slash commands:
 
 ```bash
 # Search from command line
-vex-search "backup procedures" --top-k 10 --rerank
+0k-search "backup procedures" --top-k 10 --rerank
 
 # Index from command line
-vex-index document.pdf --project MyProject
+0k-index document.pdf --project MyProject
 
 # Batch index directory
-vex-index --pattern 'docs/**/*.md'
+0k-index --pattern 'docs/**/*.md'
 
 # Dry run to preview
-vex-index --pattern 'docs/**/*.pdf' --dry-run
+0k-index --pattern 'docs/**/*.pdf' --dry-run
 
 # Get KB statistics
 python -c "from rag import KnowledgeBaseIndexer; k=KnowledgeBaseIndexer('.vex-rag.yml'); print(k.get_stats())"
@@ -376,7 +376,7 @@ The plugin includes observability scripts. They work automatically without any i
 
 ```bash
 # RAG operations will use plugin's bundled scripts
-vex-search "your query" --config .vex-rag.yml
+0k-search "your query" --config .vex-rag.yml
 # ✅ Logs written to plugin's observability-scripts/ location
 ```
 
@@ -407,11 +407,11 @@ Once installed, RAG operations automatically log metrics:
 
 ```bash
 # Search operation (logged automatically)
-vex-search "git safety protocols" --config .vex-rag.yml
+0k-search "git safety protocols" --config .vex-rag.yml
 # → Logs latency, tokens, chunks to .claude/logs/
 
 # Index operation (logged automatically)
-vex-index docs/new-feature.md --config .vex-rag.yml
+0k-index docs/new-feature.md --config .vex-rag.yml
 # → Logs latency, chunk count to .claude/logs/
 ```
 
@@ -684,12 +684,12 @@ The BM25/FTS index files are missing from disk. Run `rebuild_index()` to recreat
 2. If `search_healthy: false`: run `rebuild_index()` (see above)
 3. If `search_healthy: true`: Check KB has chunks — `total_chunks` in stats output
 4. Verify MCP server running: Check Claude Code session
-5. Test direct search: `vex-search "test query"`
+5. Test direct search: `0k-search "test query"`
 6. Check Ollama running: `curl http://localhost:11434/api/tags`
 
 **Solutions:**
 - If corrupted (`search_healthy: false`): Run `rebuild_index()`
-- If no chunks and healthy: Index documents first (`vex-index docs/ --batch`)
+- If no chunks and healthy: Index documents first (`0k-index docs/ --batch`)
 - If MCP offline: Restart Claude Code session
 - If Ollama offline: `brew services restart ollama`
 - If config missing: Create `.vex-rag.yml` from examples
@@ -778,7 +778,7 @@ indexing:
 Or per-file:
 
 ```bash
-vex-index document.md --no-sanitize
+0k-index document.md --no-sanitize
 ```
 
 ---

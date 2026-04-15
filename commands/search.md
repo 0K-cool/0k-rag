@@ -37,7 +37,7 @@ This resource automatically:
 
 Or use the CLI tool directly:
 ```bash
-vex-search "your query here" --top-k 10
+0k-search "your query here" --top-k 10
 ```
 
 ## Response Format

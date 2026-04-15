@@ -24,7 +24,7 @@ Manually index a document into the local knowledge base.
 
 ## How It Works
 
-This command calls the `vex-index` CLI tool to process and index documents:
+This command calls the `0k-index` CLI tool to process and index documents:
 1. **Load document** - Supports MD, TXT, PDF, DOCX, PPTX
 2. **Sanitize PII** - Multi-layer sanitization (configurable)
 3. **Chunk intelligently** - Boundary-aware, 384 tokens, 15% overlap

@@ -2,9 +2,9 @@
 0K-RAG Search - Search the RAG knowledge base from command line
 
 Usage:
-    vex-search "your query here"
-    vex-search "threat intelligence" --top-k 10
-    vex-search "git workflow" --hybrid
+    0k-search "your query here"
+    0k-search "threat intelligence" --top-k 10
+    0k-search "git workflow" --hybrid
 """
 
 import sys
@@ -18,10 +18,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  vex-search "threat intelligence"
-  vex-search "git safety check" --top-k 10
-  vex-search "backup procedure" --hybrid
-  vex-search "memory server" --rerank
+  0k-search "threat intelligence"
+  0k-search "git safety check" --top-k 10
+  0k-search "backup procedure" --hybrid
+  0k-search "memory server" --rerank
         """
     )
 

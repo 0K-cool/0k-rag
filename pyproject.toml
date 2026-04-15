@@ -49,9 +49,9 @@ webhooks = [
 ]
 
 [project.scripts]
-vex-search = "rag.cli.search:main"
-vex-index = "rag.cli.index:main"
-vex-rag = "rag.cli.main:main"
+0k-search = "rag.cli.search:main"
+0k-index = "rag.cli.index:main"
+0k-rag = "rag.cli.main:main"
 
 [project.urls]
 Homepage = "https://github.com/0K-cool/0k-rag"

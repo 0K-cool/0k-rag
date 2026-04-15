@@ -29,10 +29,10 @@ if ! command -v yq &> /dev/null; then
     exit 0
 fi
 
-# Check if vex-index is available
-if ! command -v vex-index &> /dev/null; then
-    echo "⚠️  vex-index not found in PATH. Auto-indexing disabled." >&2
-    echo "   Ensure vex-rag plugin is installed and CLI tools are in PATH." >&2
+# Check if 0k-index is available
+if ! command -v 0k-index &> /dev/null; then
+    echo "⚠️  0k-index not found in PATH. Auto-indexing disabled." >&2
+    echo "   Ensure 0k-rag plugin is installed and CLI tools are in PATH." >&2
     exit 0
 fi
 
@@ -91,7 +91,7 @@ if [ -n "$FILES_TO_INDEX" ]; then
 
     for file in $FILES_TO_INDEX; do
         echo "   Indexing: $file" >&2
-        if vex-index "$file" 2>&1 | grep -q "✅"; then
+        if 0k-index "$file" 2>&1 | grep -q "✅"; then
             ((INDEXED_COUNT++))
         else
             ((FAILED_COUNT++))

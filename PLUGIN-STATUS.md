@@ -12,7 +12,7 @@
 1. **Python library** (`rag` module)
 2. **MCP server** (automatic context injection)
 3. **Slash commands** (`/rag-search`, `/rag-index`)
-4. **CLI tools** (`vex-search`, `vex-index`)
+4. **CLI tools** (`0k-search`, `0k-index`)
 
 **Architecture Model:** Library + MCP Server + Slash Commands + CLI Tools
 **Status:** Full-featured Claude Code plugin
@@ -43,8 +43,8 @@
 - ✅ Per-project isolation
 
 **CLI Tools:**
-- ✅ `vex-search` - Search knowledge base from terminal
-- ✅ `vex-index` - Index documents from terminal
+- ✅ `0k-search` - Search knowledge base from terminal
+- ✅ `0k-index` - Index documents from terminal
 - ✅ Installed to system PATH via pip
 - ✅ Full help documentation (`--help`)
 
@@ -98,7 +98,7 @@
 **Reasoning:**
 1. **Claude Code plugin system is immature** - Slash commands, hooks, and subagents lack clear implementation patterns
 2. **MCP server is the core value** - Automatic context injection is what matters most
-3. **CLI tools provide same functionality** - `vex-search` and `vex-index` work great from terminal
+3. **CLI tools provide same functionality** - `0k-search` and `0k-index` work great from terminal
 4. **Easier to maintain** - Less magic, more explicit configuration
 5. **Portable across environments** - Works in any Python project, not just Claude Code
 
@@ -119,8 +119,8 @@ When Claude Code's plugin system matures and patterns emerge, we can revisit ful
 | Feature | Status | Alternative |
 |---------|--------|-------------|
 | **Automatic context injection** | ✅ MCP resource | N/A (core feature) |
-| **Search knowledge base** | ✅ `/rag-search` slash command | CLI `vex-search` |
-| **Index documents** | ✅ `/rag-index` slash command | CLI `vex-index` |
+| **Search knowledge base** | ✅ `/rag-search` slash command | CLI `0k-search` |
+| **Index documents** | ✅ `/rag-index` slash command | CLI `0k-index` |
 | **Get KB stats** | ✅ MCP tool `get_kb_stats()` | N/A |
 | **Python library** | ✅ `import rag` | N/A (core feature) |
 | **Auto-indexing** | ⚠️ Manual setup | Portable hook (planned) |

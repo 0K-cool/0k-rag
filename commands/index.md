@@ -36,16 +36,16 @@ index_document(
 Or use the CLI tool directly:
 ```bash
 # Index single file
-vex-index docs/new-doc.md
+0k-index docs/new-doc.md
 
 # Batch index directory
-vex-index --pattern 'docs/**/*.md'
+0k-index --pattern 'docs/**/*.md'
 
 # Index without sanitization
-vex-index file.md --no-sanitize
+0k-index file.md --no-sanitize
 
 # Dry run to see what would be indexed
-vex-index --pattern 'docs/**/*.pdf' --dry-run
+0k-index --pattern 'docs/**/*.pdf' --dry-run
 ```
 
 ## Indexing Pipeline
