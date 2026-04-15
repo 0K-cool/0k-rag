@@ -5,12 +5,12 @@
 Provides MCP (Model Context Protocol) access to the 0K-RAG system.
 Enables automatic context injection into Claude Code conversations.
 
-This is a configurable version that reads settings from .vex-rag.yml
+This is a configurable version that reads settings from .0k-rag.yml
 in the project directory, making it portable across multiple projects.
 
 Resources:
-- vex://help - Get usage instructions and available capabilities
-- vex://search/{query} - Search knowledge base and return top results
+- 0k-rag://help - Get usage instructions and available capabilities
+- 0k-rag://search/{query} - Search knowledge base and return top results
 
 Tools:
 - search_kb - Search the knowledge base (RECOMMENDED - always discoverable)
@@ -53,9 +53,9 @@ from rag.notifications import (
 
 # Load configuration
 def load_config() -> Dict:
-    """Load project-specific RAG configuration from .vex-rag.yml"""
+    """Load project-specific RAG configuration from .0k-rag.yml"""
     # Get config path from environment or use default
-    config_path = Path(os.getenv("RAG_CONFIG", ".vex-rag.yml"))
+    config_path = Path(os.getenv("RAG_CONFIG", ".0k-rag.yml"))
 
     # If relative path, resolve from current directory
     if not config_path.is_absolute():
@@ -63,13 +63,13 @@ def load_config() -> Dict:
 
     if not config_path.exists():
         # Fallback: try parent directory (for MCP server running from subdirectory)
-        config_path = Path.cwd().parent / ".vex-rag.yml"
+        config_path = Path.cwd().parent / ".0k-rag.yml"
 
     if not config_path.exists():
         raise FileNotFoundError(
             f"RAG configuration not found: {config_path}\n"
-            f"Create .vex-rag.yml in your project root or set RAG_CONFIG environment variable.\n"
-            f"See examples in ~/.claude/plugins/vex-rag/examples/"
+            f"Create .0k-rag.yml in your project root or set RAG_CONFIG environment variable.\n"
+            f"See examples in ~/.claude/plugins/0k-rag/examples/"
         )
 
     with open(config_path) as f:
@@ -109,15 +109,15 @@ logging.basicConfig(
     handlers=[file_handler]
 )
 
-logger = logging.getLogger('vex_kb_server')
-logger.info(f"Vex RAG MCP Server starting for project: {PROJECT_NAME}")
-logger.info(f"Configuration loaded from: {os.getenv('RAG_CONFIG', '.vex-rag.yml')}")
+logger = logging.getLogger('ok_rag_server')
+logger.info(f"0K-RAG MCP Server starting for project: {PROJECT_NAME}")
+logger.info(f"Configuration loaded from: {os.getenv('RAG_CONFIG', '.0k-rag.yml')}")
 logger.info(f"Database path: {DB_PATH}")
 logger.info(f"Reranking: {'enabled' if ENABLE_RERANKING else 'disabled'}")
 
 # Initialize MCP server
 # NOTE: FastMCP.__init__ calls configure_logging() which adds RichHandler(stderr=True)
-mcp = FastMCP(f"Vex Knowledge Base ({PROJECT_NAME})")
+mcp = FastMCP(f"0K-RAG Knowledge Base ({PROJECT_NAME})")
 
 # CRITICAL: Suppress FastMCP's stderr logging AFTER FastMCP initialization
 # FastMCP.__init__ calls configure_logging() which adds RichHandler(stderr=True)
@@ -162,7 +162,7 @@ def graceful_shutdown(signum, frame):
             # Indexer cleanup if needed
             _indexer = None
 
-        logger.info("Vex Knowledge Base MCP Server shutdown complete")
+        logger.info("0K-RAG Knowledge Base MCP Server shutdown complete")
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
 
@@ -215,16 +215,16 @@ def get_indexer() -> KnowledgeBaseIndexer:
 # MCP RESOURCES
 # =============================================================================
 
-@mcp.resource("vex://help")
+@mcp.resource("0k-rag://help")
 def get_help() -> str:
     """
-    Get usage instructions for the Vex Knowledge Base.
+    Get usage instructions for the 0K-RAG Knowledge Base.
 
     This resource provides onboarding information for AI agents
     discovering the plugin for the first time.
     """
     return f"""
-Vex Knowledge Base - RAG System for {PROJECT_NAME}
+0K-RAG Knowledge Base - RAG System for {PROJECT_NAME}
 
 SEARCH (use the tool - always discoverable):
   search_kb(query, top_k=5)
@@ -235,11 +235,11 @@ SEARCH (use the tool - always discoverable):
     search_kb("MITRE ATT&CK persistence techniques")
 
 ALTERNATIVE (resource - may not be discoverable):
-  vex://search/{{query}}
+  0k-rag://search/{{query}}
 
   Examples:
-    vex://search/authentication bypass
-    vex://search/git safety check
+    0k-rag://search/authentication bypass
+    0k-rag://search/git safety check
 
 INDEXING:
   index_document(file_path, project=None, enable_sanitization=None)
@@ -266,10 +266,10 @@ Default top_k: {DEFAULT_TOP_K}
 """
 
 
-@mcp.resource("vex://search/{query}")
+@mcp.resource("0k-rag://search/{query}")
 def search_knowledge_base(query: str) -> str:
     """
-    Search the Vex knowledge base and return results with native citations.
+    Search the 0K-RAG knowledge base and return results with native citations.
 
     This resource enables automatic context injection - when Claude needs
     information about project documentation, it can automatically search
@@ -345,7 +345,7 @@ def search_knowledge_base(query: str) -> str:
 @mcp.tool()
 def search_kb(query: str, top_k: int = 5) -> str:
     """
-    Search the Vex knowledge base for relevant information.
+    Search the 0K-RAG knowledge base for relevant information.
 
     This is the PRIMARY way to query indexed documentation, skills,
     workflows, and other knowledge. Uses hybrid retrieval (vector + BM25)
@@ -479,7 +479,7 @@ def index_document(
     enable_sanitization: Optional[bool] = None
 ) -> str:
     """
-    Index a new document into the Vex knowledge base.
+    Index a new document into the 0K-RAG knowledge base.
 
     This tool allows manual indexing of documents during conversations.
     Useful for adding new documentation, skills, or workflows on-the-fly.
@@ -587,7 +587,7 @@ def index_document(
 @mcp.tool()
 def get_kb_stats() -> Dict[str, Any]:
     """
-    Get statistics about the Vex knowledge base.
+    Get statistics about the 0K-RAG knowledge base.
 
     Returns total chunks, projects, files indexed, plus usage hints
     for searching the knowledge base. Also runs a live search health
@@ -636,7 +636,7 @@ def get_kb_stats() -> Dict[str, Any]:
             'search_kb("incident response workflow", top_k=3)',
             'search_kb("security best practices")'
         ]
-        stats["help_resource"] = "vex://help"
+        stats["help_resource"] = "0k-rag://help"
 
         logger.info(f"Stats retrieved: {stats['total_chunks']} total chunks, search_healthy={search_healthy}, fts_healthy={fts_actually_healthy}")
         return stats
@@ -653,7 +653,7 @@ def rebuild_index() -> str:
     Rebuild the entire knowledge base from source files.
 
     Drops the existing LanceDB table and re-indexes all documents
-    from the paths defined in .vex-rag.yml (auto_index_paths).
+    from the paths defined in .0k-rag.yml (auto_index_paths).
     Use when search returns 0 results despite chunks being stored,
     or when the database is corrupted.
 
@@ -677,7 +677,7 @@ def rebuild_index() -> str:
     if not auto_index_paths:
         return json.dumps({
             "success": False,
-            "error": "No auto_index_paths defined in .vex-rag.yml. Add indexing.auto_index_paths to enable rebuild."
+            "error": "No auto_index_paths defined in .0k-rag.yml. Add indexing.auto_index_paths to enable rebuild."
         }, indent=2)
 
     try:
@@ -717,7 +717,7 @@ def rebuild_index() -> str:
 
         # Step 3: Collect all .md files from auto_index_paths
         files_to_index = []
-        config_dir = Path(os.getenv("RAG_CONFIG", ".vex-rag.yml"))
+        config_dir = Path(os.getenv("RAG_CONFIG", ".0k-rag.yml"))
         if not config_dir.is_absolute():
             config_dir = Path.cwd() / config_dir
         project_root = config_dir.parent
@@ -802,7 +802,7 @@ if __name__ == "__main__":
 
     atexit.register(cleanup_on_exit)
 
-    logger.info(f"Starting Vex Knowledge Base MCP Server for {PROJECT_NAME}...")
+    logger.info(f"Starting 0K-RAG Knowledge Base MCP Server for {PROJECT_NAME}...")
     logger.info(f"Python path: {sys.path}")
     logger.info(f"Working directory: {Path.cwd()}")
 

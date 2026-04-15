@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 
-# vex-token-report.sh - Generate monthly token usage report
+# 0k-rag-token-report.sh - Generate monthly token usage report
 # Part of Priority 2: Observability Framework (Phase 1)
-# Usage: vex-token-report.sh [YYYY-MM]
+# Usage: 0k-rag-token-report.sh [YYYY-MM]
 #        If no month specified, generates report for current month
 # Compatible with Bash 3.2+ (macOS default)
 
 set -eo pipefail
 
 # Phase 3: Error Tracking Integration
-ERROR_LOG_SCRIPT="${OKRAG_LOG_DIR:-${HOME}/.0k-rag/logs}/../scripts/vex-log-error.sh"
+ERROR_LOG_SCRIPT="${OKRAG_LOG_DIR:-${HOME}/.0k-rag/logs}/../scripts/0k-rag-log-error.sh"
 
 # Error handler
 error_handler() {
@@ -17,11 +17,11 @@ error_handler() {
   local line_number=$1
   local command="$BASH_COMMAND"
 
-  # Log error if vex-log-error.sh is available
+  # Log error if 0k-rag-log-error.sh is available
   if [[ -x "$ERROR_LOG_SCRIPT" ]]; then
     "$ERROR_LOG_SCRIPT" \
       --severity=error \
-      --source="vex-token-report.sh" \
+      --source="0k-rag-token-report.sh" \
       --error-type="execution_failure" \
       --message="Token report generation failed: $command" \
       --exit-code="$exit_code" \

@@ -62,8 +62,8 @@ Examples:
     )
     parser.add_argument(
         "--config",
-        default=".vex-rag.yml",
-        help="Path to configuration file (default: .vex-rag.yml)"
+        default=".0k-rag.yml",
+        help="Path to configuration file (default: .0k-rag.yml)"
     )
     parser.add_argument(
         "--verbose",
@@ -83,7 +83,7 @@ Examples:
         config_path = Path(args.config)
         if not config_path.exists():
             print(f"Error: Configuration file not found: {config_path}", file=sys.stderr)
-            print(f"   Create .vex-rag.yml in your project root", file=sys.stderr)
+            print(f"   Create .0k-rag.yml in your project root", file=sys.stderr)
             print(f"   See examples in 0k-rag/examples/", file=sys.stderr)
             return 1
 

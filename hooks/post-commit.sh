@@ -7,7 +7,7 @@
 #   chmod +x .git/hooks/post-commit
 #
 # Configuration:
-#   Edit .vex-rag.yml to configure auto-index settings:
+#   Edit .0k-rag.yml to configure auto-index settings:
 #   - indexing.auto_index_extensions (default: [.md, .pdf, .txt])
 #   - indexing.auto_index_paths (directories to watch)
 
@@ -15,10 +15,10 @@
 set -e
 
 # Load configuration
-CONFIG_FILE=".vex-rag.yml"
+CONFIG_FILE=".0k-rag.yml"
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "⚠️  RAG config not found: $CONFIG_FILE" >&2
-    echo "   Auto-indexing disabled. Create .vex-rag.yml to enable." >&2
+    echo "   Auto-indexing disabled. Create .0k-rag.yml to enable." >&2
     exit 0
 fi
 

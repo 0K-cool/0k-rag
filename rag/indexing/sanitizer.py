@@ -14,12 +14,12 @@ Security Purpose (100% Local Architecture):
 - Future-proofing (safe to migrate if cloud components added)
 
 Allowlist (v1.1.0):
-- External JSON config at ~/.vex-rag/config/ner-allowlist.json
+- External JSON config at ~/.0k-rag/config/ner-allowlist.json
 - Prevents NER from redacting public security terms (OWASP, MITRE, L0-L19, etc.)
 - 60s TTL cache for performance
 - Client names and real PII are NOT allowlisted
 
-From security analysis: output/research/vex-rag-security-analysis.md
+From security analysis: output/research/0k-rag-security-analysis.md
 """
 
 import re
@@ -78,7 +78,7 @@ class Sanitizer:
     }
 
     # Allowlist config path and cache
-    _ALLOWLIST_DEFAULT_PATH = Path.home() / ".vex-rag" / "config" / "ner-allowlist.json"
+    _ALLOWLIST_DEFAULT_PATH = Path.home() / ".0k-rag" / "config" / "ner-allowlist.json"
     _ALLOWLIST_CACHE_TTL = 60  # seconds
 
     def __init__(self, enable_ner: bool = True, allowlist_path: Optional[str] = None):
@@ -87,7 +87,7 @@ class Sanitizer:
 
         Args:
             enable_ner: Enable Named Entity Recognition (spaCy)
-            allowlist_path: Path to NER allowlist JSON (default: ~/.vex-rag/config/ner-allowlist.json)
+            allowlist_path: Path to NER allowlist JSON (default: ~/.0k-rag/config/ner-allowlist.json)
         """
         self.enable_ner = enable_ner
         self.nlp = None

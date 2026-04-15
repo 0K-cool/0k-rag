@@ -12,12 +12,12 @@
 
   "mcpServers": [
     {
-      "name": "vex-knowledge-base",
+      "name": "0k-rag-knowledge-base",
       "type": "stdio",
       "command": "python3",
-      "args": ["-m", "mcp_server.vex_kb_server"],
+      "args": ["-m", "mcp_server.ok_rag_server"],
       "env": {
-        "RAG_CONFIG": "{project}/.vex-rag.yml",
+        "RAG_CONFIG": "{project}/.0k-rag.yml",
         "PYTHONPATH": "{plugin_dir}"
       },
       "description": "Automatic context injection from local knowledge base"
@@ -44,7 +44,7 @@
 
   "configuration": {
     "required": [
-      ".vex-rag.yml"
+      ".0k-rag.yml"
     ],
     "optional": [
       "lance_vex_kb/"

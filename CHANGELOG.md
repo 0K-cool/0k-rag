@@ -13,8 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub repository: `0K-cool/vex-rag` → `0K-cool/0k-rag` (old URLs auto-redirect)
 - Display name: "Vex RAG Plugin" → "0K-RAG Plugin"
 - Historical changelog entries preserved with original naming
-- Config filename `.vex-rag.yml` unchanged for backward compatibility
-- MCP server name `vex-knowledge-base` unchanged for backward compatibility
+- Config filename `.vex-rag.yml` → `.0k-rag.yml`
+- MCP server name `vex-knowledge-base` → `0k-rag-knowledge-base`
+- URI scheme `vex://` → `0k-rag://`
+- MCP server file `vex_kb_server.py` → `ok_rag_server.py`
+- Observability scripts renamed: `vex-*` → `0k-rag-*`
+- `lance_vex_kb` database path preserved (legacy, existing installations)
 
 ## [1.4.1] - 2026-03-18
 
@@ -49,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **AI Agent Discoverability** (ATHENA feedback)
   - `search_kb(query, top_k)` MCP tool - always discoverable by AI agents
-  - `vex://help` MCP resource - onboarding documentation for agents
+  - `0k-rag://help` MCP resource - onboarding documentation for agents
   - Enhanced `get_kb_stats()` with `usage_hint` and `example_queries`
 
 - **Progress Notification System**
@@ -62,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Pipeline integration (indexer, context generator, embedder)
 
 ### Fixed
-- **MCP Resource Discoverability** - Templated MCP resources (`vex://search/{query}`) aren't enumerable by AI agents. Added `search_kb` tool as always-discoverable alternative.
+- **MCP Resource Discoverability** - Templated MCP resources (`0k-rag://search/{query}`) aren't enumerable by AI agents. Added `search_kb` tool as always-discoverable alternative.
 
 ### Changed
 - `index_document()` now includes progress summary in response

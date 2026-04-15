@@ -10,7 +10,7 @@ Search the knowledge base using vector search, BM25, RRF fusion, and BGE reranki
 ## Usage
 
 When the user requests to search for information in the knowledge base:
-1. Use the `vex-knowledge-base` MCP server's search resources
+1. Use the `0k-rag-knowledge-base` MCP server's search resources
 2. Retrieve top-k results (default: 5)
 3. Present results with sources and scores
 
@@ -26,7 +26,7 @@ When the user requests to search for information in the knowledge base:
 
 Use the MCP resource:
 ```
-vex://search/{query}
+0k-rag://search/{query}
 ```
 
 This resource automatically:
@@ -51,7 +51,7 @@ Results include:
 
 ## Configuration
 
-Controlled by `.vex-rag.yml`:
+Controlled by `.0k-rag.yml`:
 - `retrieval.default_top_k` - Number of results to return
 - `retrieval.enable_reranking` - Use BGE reranker for final ranking
 - `retrieval.reranker_model` - Reranker model to use

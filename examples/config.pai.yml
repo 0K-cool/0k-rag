@@ -1,12 +1,12 @@
 # 0K-RAG Example Configuration
-# Copy this file to your project root as .vex-rag.yml
+# Copy this file to your project root as .0k-rag.yml
 
 project:
   name: my-project
   description: My project documentation and knowledge base
 
 database:
-  path: ./lance_vex_kb
+  path: ./lance_vex_kb  # NOTE: legacy default path name — preserved for existing installations
   backup_dir: ~/0k-rag-backups/
 
 indexing:

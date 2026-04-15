@@ -66,7 +66,7 @@ python -m spacy download en_core_web_sm
 **What Gets Installed:**
 - ✅ Python `rag` module (importable library)
 - ✅ CLI tools: `0k-search`, `0k-index` (added to PATH)
-- ✅ MCP server: `mcp_server/vex_kb_server.py`
+- ✅ MCP server: `mcp_server/ok_rag_server.py`
 - ✅ All dependencies from `pyproject.toml`
 
 ### 3. Pull Required Ollama Models
@@ -86,11 +86,11 @@ ollama pull nomic-embed-text
 cd ~/your-project
 
 # Copy example configuration
-cp ~/tools/0k-rag/examples/config.pai.yml .vex-rag.yml
+cp ~/tools/0k-rag/examples/config.pai.yml .0k-rag.yml
 
 # Edit configuration for your project
 # At minimum: update project.name and security.allowed_base_paths
-vim .vex-rag.yml
+vim .0k-rag.yml
 ```
 
 ### 5. Initialize Database
@@ -110,13 +110,13 @@ mkdir -p lance_kb
 ```json
 {
   "mcpServers": {
-    "vex-knowledge-base": {
+    "0k-rag-knowledge-base": {
       "command": "/Users/yourusername/tools/0k-rag/.venv/bin/python3",
       "args": [
-        "/Users/yourusername/tools/0k-rag/mcp_server/vex_kb_server.py"
+        "/Users/yourusername/tools/0k-rag/mcp_server/ok_rag_server.py"
       ],
       "env": {
-        "RAG_CONFIG": "/Users/yourusername/your-project/.vex-rag.yml",
+        "RAG_CONFIG": "/Users/yourusername/your-project/.0k-rag.yml",
         "PYTHONPATH": "/Users/yourusername/tools/0k-rag"
       },
       "description": "0K-RAG Plugin - Automatic context injection from knowledge base"
@@ -128,13 +128,13 @@ mkdir -p lance_kb
 **Important Notes:**
 - Replace `/Users/yourusername/` with your actual paths
 - `PYTHONPATH` is **REQUIRED** - without it, Python can't find the `rag` module
-- `RAG_CONFIG` should point to your project's `.vex-rag.yml` file
+- `RAG_CONFIG` should point to your project's `.0k-rag.yml` file
 - Restart Claude Code after adding this configuration
 
 **Troubleshooting:**
 - If MCP server doesn't connect: Check that `PYTHONPATH` points to the 0k-rag directory
 - If you get "module not found" errors: Verify `PYTHONPATH` is set in `.mcp.json`
-- Logs location: Configured in `.vex-rag.yml` under `logging.file`
+- Logs location: Configured in `.0k-rag.yml` under `logging.file`
 
 ### ✅ Installation Complete!
 
@@ -148,7 +148,7 @@ After completing these steps, you have:
 
 **MCP Server:**
 - Automatic context injection in Claude Code conversations
-- Use `vex://search/{query}` resource or ask questions naturally
+- Use `0k-rag://search/{query}` resource or ask questions naturally
 - Tools: `search_kb`, `index_document`, `get_kb_stats`
 
 **Python Library:**
@@ -168,7 +168,7 @@ from rag.retrieval import RetrievalPipeline
 
 ## Configuration
 
-Create `.vex-rag.yml` in your project root:
+Create `.0k-rag.yml` in your project root:
 
 ```yaml
 project:
@@ -288,7 +288,7 @@ For manual control during conversations, use slash commands:
 0k-index --pattern 'docs/**/*.pdf' --dry-run
 
 # Get KB statistics
-python -c "from rag import KnowledgeBaseIndexer; k=KnowledgeBaseIndexer('.vex-rag.yml'); print(k.get_stats())"
+python -c "from rag import KnowledgeBaseIndexer; k=KnowledgeBaseIndexer('.0k-rag.yml'); print(k.get_stats())"
 ```
 
 ### MCP Tools (In Conversation)
@@ -326,15 +326,15 @@ rebuild_index()
 
 ```
 # Help resource (onboarding for AI agents)
-vex://help
+0k-rag://help
 
 # Search resource (alternative to search_kb tool)
-vex://search/{query}
+0k-rag://search/{query}
 
-# Example: vex://search/git%20safety%20protocols
+# Example: 0k-rag://search/git%20safety%20protocols
 ```
 
-**Note:** The `search_kb` tool is preferred over the `vex://search` resource because MCP tools are always discoverable by AI agents, while templated resources may not be enumerable.
+**Note:** The `search_kb` tool is preferred over the `0k-rag://search` resource because MCP tools are always discoverable by AI agents, while templated resources may not be enumerable.
 
 ---
 
@@ -376,7 +376,7 @@ The plugin includes observability scripts. They work automatically without any i
 
 ```bash
 # RAG operations will use plugin's bundled scripts
-0k-search "your query" --config .vex-rag.yml
+0k-search "your query" --config .0k-rag.yml
 # ✅ Logs written to plugin's observability-scripts/ location
 ```
 
@@ -407,11 +407,11 @@ Once installed, RAG operations automatically log metrics:
 
 ```bash
 # Search operation (logged automatically)
-0k-search "git safety protocols" --config .vex-rag.yml
+0k-search "git safety protocols" --config .0k-rag.yml
 # → Logs latency, tokens, chunks to .claude/logs/
 
 # Index operation (logged automatically)
-0k-index docs/new-feature.md --config .vex-rag.yml
+0k-index docs/new-feature.md --config .0k-rag.yml
 # → Logs latency, chunk count to .claude/logs/
 ```
 
@@ -421,7 +421,7 @@ Check system health and error rates:
 
 ```bash
 # 24-hour health summary
-./.claude/scripts/vex-health-check.sh --period=24h
+./.claude/scripts/0k-rag-health-check.sh --period=24h
 
 # Output:
 # 🏥 Health Status: 🟢 EXCELLENT (Grade: A+)
@@ -438,13 +438,13 @@ Generate monthly reports for cost tracking and performance analysis:
 
 ```bash
 # Token usage and cost report
-./.claude/scripts/vex-token-report.sh 2026-01
+./.claude/scripts/0k-rag-token-report.sh 2026-01
 
 # Latency performance report
-./.claude/scripts/vex-latency-report.sh 2026-01
+./.claude/scripts/0k-rag-latency-report.sh 2026-01
 
 # Error analysis report
-./.claude/scripts/vex-error-report.sh 2026-01
+./.claude/scripts/0k-rag-error-report.sh 2026-01
 ```
 
 ### Log Files
@@ -541,7 +541,7 @@ chmod +x .git/hooks/post-commit
 
 ### Configuration
 
-Edit `.vex-rag.yml`:
+Edit `.0k-rag.yml`:
 
 ```yaml
 indexing:
@@ -668,7 +668,7 @@ rebuild_index()
 ```
 
 This drops the corrupted LanceDB table and re-indexes all source files from
-`auto_index_paths` in your `.vex-rag.yml`. Source documents are never touched —
+`auto_index_paths` in your `.0k-rag.yml`. Source documents are never touched —
 only the vector embeddings are regenerated.
 
 **`get_kb_stats()` shows `search_healthy: false`:**
@@ -692,7 +692,7 @@ The BM25/FTS index files are missing from disk. Run `rebuild_index()` to recreat
 - If no chunks and healthy: Index documents first (`0k-index docs/ --batch`)
 - If MCP offline: Restart Claude Code session
 - If Ollama offline: `brew services restart ollama`
-- If config missing: Create `.vex-rag.yml` from examples
+- If config missing: Create `.0k-rag.yml` from examples
 
 ### Slow searches (>5 seconds)
 
@@ -726,7 +726,7 @@ The BM25/FTS index files are missing from disk. Run `rebuild_index()` to recreat
 **Diagnosis:**
 1. Check git hook installed: `ls -la .git/hooks/post-commit`
 2. Check hook executable: `test -x .git/hooks/post-commit && echo "OK"`
-3. Check config: `.vex-rag.yml` → `indexing.auto_index_*`
+3. Check config: `.0k-rag.yml` → `indexing.auto_index_*`
 
 **Solutions:**
 - Hook missing: Create your own or check `~/tools/0k-rag/hooks/` (if included)
@@ -739,7 +739,7 @@ The BM25/FTS index files are missing from disk. Run `rebuild_index()` to recreat
 
 ### Custom Chunking
 
-Adjust chunk size in `.vex-rag.yml`:
+Adjust chunk size in `.0k-rag.yml`:
 
 ```yaml
 indexing:
@@ -829,7 +829,7 @@ See [PLUGIN-STATUS.md](PLUGIN-STATUS.md) for detailed version history and roadma
 **Current:** v1.3.1 (February 2, 2026) - AI agent discoverability + progress notifications
 
 **Recent Releases:**
-- v1.3.1 - Added search_kb tool, vex://help resource, progress notification system
+- v1.3.1 - Added search_kb tool, 0k-rag://help resource, progress notification system
 - v1.2.0 - Added `/rag-search` and `/rag-index` slash commands
 - v1.1.0 - Clarified plugin capabilities, fixed misleading documentation
 - v1.0.1 - CLI portability fixes, privacy improvements
@@ -843,7 +843,7 @@ See [PLUGIN-STATUS.md](PLUGIN-STATUS.md) for complete roadmap and planned featur
 
 **Completed in v1.3.1:**
 - ✅ Progress notification system (Console + Webhook)
-- ✅ AI agent discoverability (search_kb tool, vex://help)
+- ✅ AI agent discoverability (search_kb tool, 0k-rag://help)
 - ✅ Enhanced get_kb_stats with usage hints
 
 **Long-term (v2.0.0+):**

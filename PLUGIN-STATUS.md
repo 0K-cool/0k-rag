@@ -35,11 +35,11 @@
 - ✅ Security hardening (SQL injection, path traversal protection)
 
 **MCP Server:**
-- ✅ `vex-knowledge-base` MCP server
-- ✅ Resource: `vex://search/{query}` (automatic context injection)
+- ✅ `0k-rag-knowledge-base` MCP server
+- ✅ Resource: `0k-rag://search/{query}` (automatic context injection)
 - ✅ Tool: `index_document(file_path, project, sanitize)`
 - ✅ Tool: `get_kb_stats()`
-- ✅ Configuration-driven (`.vex-rag.yml`)
+- ✅ Configuration-driven (`.0k-rag.yml`)
 - ✅ Per-project isolation
 
 **CLI Tools:**
@@ -213,7 +213,7 @@ ollama pull nomic-embed-text
 
 # 4. Configure your project
 cd ~/your-project
-cp ~/tools/0k-rag/examples/config.pai.yml .vex-rag.yml
+cp ~/tools/0k-rag/examples/config.pai.yml .0k-rag.yml
 
 # 5. Setup MCP server (edit .mcp.json manually)
 # 6. Start using!

@@ -1,7 +1,7 @@
 #!/bin/bash
-# vex-health-check.sh - Vex system health dashboard
-# Part of Vex Observability Framework - Phase 3: Error Tracking
-# Usage: vex-health-check.sh [--period=24h|7d|30d] [--json]
+# 0k-rag-health-check.sh - 0K-RAG system health dashboard
+# Part of 0K-RAG Observability Framework - Phase 3: Error Tracking
+# Usage: 0k-rag-health-check.sh [--period=24h|7d|30d] [--json]
 
 set -euo pipefail
 

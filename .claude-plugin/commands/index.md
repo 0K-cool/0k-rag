@@ -54,13 +54,13 @@ This command calls the `0k-index` CLI tool to process and index documents:
 
 For security, only files within allowed directories can be indexed:
 - Your project directory
-- Configured allowed paths in `.vex-rag.yml`
+- Configured allowed paths in `.0k-rag.yml`
 
 Attempts to index files outside allowed directories will be rejected (prevents path traversal).
 
 ## Configuration
 
-Indexing uses your project's `.vex-rag.yml` configuration:
+Indexing uses your project's `.0k-rag.yml` configuration:
 - Database location
 - PII sanitization settings
 - Chunking parameters

@@ -236,7 +236,7 @@ security:
     - {tmp_path}/project2
 """.format(tmp_path=tmp_path)
 
-        config_file = tmp_path / ".vex-rag.yml"
+        config_file = tmp_path / ".0k-rag.yml"
         config_file.write_text(config_content)
 
         monkeypatch.chdir(tmp_path)
@@ -399,7 +399,7 @@ security:
   allowed_base_paths:
     - {tmp_path}
 """
-        config_file = tmp_path / ".vex-rag.yml"
+        config_file = tmp_path / ".0k-rag.yml"
         config_file.write_text(config_content)
 
         monkeypatch.chdir(tmp_path)

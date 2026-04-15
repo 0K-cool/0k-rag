@@ -1,7 +1,7 @@
 #!/bin/bash
-# vex-log-error.sh - Centralized error logging utility
-# Part of Vex Observability Framework - Phase 3: Error Tracking
-# Usage: vex-log-error.sh --severity=error --source="script.sh" --message="Error occurred" [options]
+# 0k-rag-log-error.sh - Centralized error logging utility
+# Part of 0K-RAG Observability Framework - Phase 3: Error Tracking
+# Usage: 0k-rag-log-error.sh --severity=error --source="script.sh" --message="Error occurred" [options]
 
 set -euo pipefail
 
@@ -68,7 +68,7 @@ done
 # Validate required fields
 if [[ -z "$SEVERITY" || -z "$SOURCE" || -z "$MESSAGE" ]]; then
   echo "Error: --severity, --source, and --message are required" >&2
-  echo "Usage: vex-log-error.sh --severity=error --source=script.sh --message=\"Error message\" [options]" >&2
+  echo "Usage: 0k-rag-log-error.sh --severity=error --source=script.sh --message=\"Error message\" [options]" >&2
   exit 1
 fi
 

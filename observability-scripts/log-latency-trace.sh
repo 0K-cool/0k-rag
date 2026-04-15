@@ -7,7 +7,7 @@
 set -eo pipefail
 
 # Phase 3: Error Tracking Integration
-ERROR_LOG_SCRIPT="${OKRAG_LOG_DIR:-${HOME}/.0k-rag/logs}/../scripts/vex-log-error.sh"
+ERROR_LOG_SCRIPT="${OKRAG_LOG_DIR:-${HOME}/.0k-rag/logs}/../scripts/0k-rag-log-error.sh"
 
 # Error handler
 error_handler() {
@@ -15,7 +15,7 @@ error_handler() {
   local line_number=$1
   local command="$BASH_COMMAND"
 
-  # Log error if vex-log-error.sh is available
+  # Log error if 0k-rag-log-error.sh is available
   if [[ -x "$ERROR_LOG_SCRIPT" ]]; then
     "$ERROR_LOG_SCRIPT" \
       --severity=error \

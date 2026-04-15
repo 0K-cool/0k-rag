@@ -36,14 +36,14 @@ class RAGObservability:
         # Location 1: Project's .claude/scripts/ directory
         project_token = Path(self.project_dir) / ".claude/scripts/log-token-usage.sh"
         project_latency = Path(self.project_dir) / ".claude/scripts/log-latency-trace.sh"
-        project_error = Path(self.project_dir) / ".claude/scripts/vex-log-error.sh"
+        project_error = Path(self.project_dir) / ".claude/scripts/0k-rag-log-error.sh"
 
         # Location 2: 0k-rag plugin's bundled scripts
         # Get plugin root directory (go up from rag/utils/observability.py)
         plugin_root = Path(__file__).parent.parent.parent
         plugin_token = plugin_root / "observability-scripts/log-token-usage.sh"
         plugin_latency = plugin_root / "observability-scripts/log-latency-trace.sh"
-        plugin_error = plugin_root / "observability-scripts/vex-log-error.sh"
+        plugin_error = plugin_root / "observability-scripts/0k-rag-log-error.sh"
 
         # Check project scripts first, then fall back to plugin scripts
         if all([project_token.exists(), project_latency.exists(), project_error.exists()]):

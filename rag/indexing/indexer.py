@@ -4,7 +4,7 @@ Knowledge Base Indexer - Store contextual chunks in LanceDB
 Creates and manages the LanceDB vector database for the 0K-RAG knowledge base.
 Stores contextual chunks with embeddings for hybrid semantic + keyword search.
 
-Database Location: Configured via .vex-rag.yml
+Database Location: Configured via .0k-rag.yml
 Security: 100% local storage, encrypted at rest via FileVault
 """
 
@@ -77,7 +77,7 @@ def _sanitize_sql_value(value: str) -> str:
 
 def _load_allowed_base_paths() -> List[Path]:
     """
-    Load allowed base paths from .vex-rag.yml configuration.
+    Load allowed base paths from .0k-rag.yml configuration.
 
     Returns:
         List of allowed base directory paths
@@ -88,7 +88,7 @@ def _load_allowed_base_paths() -> List[Path]:
         - Resolves all paths to absolute paths
     """
     try:
-        config_path = Path(os.getenv("RAG_CONFIG", ".vex-rag.yml"))
+        config_path = Path(os.getenv("RAG_CONFIG", ".0k-rag.yml"))
 
         # Try to find config in current directory or parent directories
         search_path = Path.cwd()
@@ -175,7 +175,7 @@ def _validate_path(user_path: str, allowed_bases: Optional[List[Path]] = None) -
 class KnowledgeBaseIndexer:
     """Manage LanceDB knowledge base"""
 
-    def __init__(self, db_path: str = "lance_vex_kb"):
+    def __init__(self, db_path: str = "lance_vex_kb"):  # NOTE: lance_vex_kb is the legacy default path — preserved for existing installations
         """
         Initialize indexer
 

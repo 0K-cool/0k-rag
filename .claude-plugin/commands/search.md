@@ -43,7 +43,7 @@ This command calls the `0k-search` CLI tool to query your local knowledge base:
 
 ## Configuration
 
-Search uses your project's `.vex-rag.yml` configuration:
+Search uses your project's `.0k-rag.yml` configuration:
 - Database location
 - Reranking settings
 - Number of results

@@ -1,4 +1,4 @@
-# Vex RAG Plugin Dependencies
+# 0K-RAG Plugin Dependencies
 # Python 3.11+
 
 # Vector Database

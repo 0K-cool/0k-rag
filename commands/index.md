@@ -60,7 +60,7 @@ Each document goes through:
 
 ## Configuration
 
-Controlled by `.vex-rag.yml`:
+Controlled by `.0k-rag.yml`:
 - `indexing.chunk_size` - Chunk size in tokens (default: 384)
 - `indexing.chunk_overlap` - Overlap percentage (default: 0.15)
 - `indexing.context_model` - Ollama model for context generation

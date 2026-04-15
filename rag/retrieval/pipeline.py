@@ -40,7 +40,7 @@ class RetrievalPipeline:
 
     def __init__(
         self,
-        db_path: str = "lance_vex_kb",
+        db_path: str = "lance_vex_kb",  # NOTE: lance_vex_kb is the legacy default path — preserved for existing installations
         enable_reranking: bool = True,
         reranker_model: str = "BAAI/bge-reranker-large"
     ):

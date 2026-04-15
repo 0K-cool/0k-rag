@@ -1,7 +1,7 @@
 #!/bin/bash
-# vex-error-report.sh - Generate monthly error analysis report
-# Part of Vex Observability Framework - Phase 3: Error Tracking
-# Usage: vex-error-report.sh [YYYY-MM] [--output=/path/to/report.md]
+# 0k-rag-error-report.sh - Generate monthly error analysis report
+# Part of 0K-RAG Observability Framework - Phase 3: Error Tracking
+# Usage: 0k-rag-error-report.sh [YYYY-MM] [--output=/path/to/report.md]
 
 set -euo pipefail
 

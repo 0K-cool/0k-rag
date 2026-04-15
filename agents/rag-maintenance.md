@@ -61,7 +61,7 @@ get_kb_stats()
 0k-search "test query"
 
 # Check configuration
-cat .vex-rag.yml
+cat .0k-rag.yml
 ```
 
 ### Indexing
@@ -90,7 +90,7 @@ index_document(file_path="document.md", project="ProjectName")
 ```bash
 # Note: Backup scripts are project-specific
 # Check scripts/ directory for backup utilities
-# Location configured in .vex-rag.yml under database.backup_dir
+# Location configured in .0k-rag.yml under database.backup_dir
 ```
 
 ---
@@ -99,18 +99,18 @@ index_document(file_path="document.md", project="ProjectName")
 
 ### RAG Knowledge Base
 - **Database:** LanceDB (local vector store)
-- **Location:** Configured in `.vex-rag.yml` (`database.path`)
+- **Location:** Configured in `.0k-rag.yml` (`database.path`)
 - **Embeddings:** nomic-embed-text (768-dim, local Ollama)
 - **Search:** Hybrid (Vector + BM25 + RRF + BGE reranking)
 
 ### MCP Integration
-- **Server:** `vex-knowledge-base` (FastMCP)
+- **Server:** `0k-rag-knowledge-base` (FastMCP)
 - **Config:** `.mcp.json` in project root
 - **Auto-loads:** On Claude Code startup
 - **Tools:** `index_document`, `get_kb_stats`
-- **Resources:** `vex://search/{query}`
+- **Resources:** `0k-rag://search/{query}`
 
-### Configuration File (.vex-rag.yml)
+### Configuration File (.0k-rag.yml)
 ```yaml
 project:
   name: ProjectName
@@ -200,13 +200,13 @@ index_document(
 2. Verify MCP server running: Check Claude Code session
 3. Test direct search: `0k-search "test query"`
 4. Check Ollama running: `curl http://localhost:11434/api/tags`
-5. Verify configuration: `cat .vex-rag.yml`
+5. Verify configuration: `cat .0k-rag.yml`
 
 **Solutions:**
 - If no chunks: Index documents first
 - If MCP offline: Restart Claude Code session
 - If Ollama offline: `brew services restart ollama`
-- If config missing: Create `.vex-rag.yml` from examples
+- If config missing: Create `.0k-rag.yml` from examples
 
 **Issue: Slow retrieval (>5 seconds)**
 
@@ -214,7 +214,7 @@ index_document(
 1. First search always slow (BGE model load ~6s)
 2. Subsequent searches should be ~2s
 3. Check system resources: Activity Monitor
-4. Check reranking enabled: `.vex-rag.yml` → `retrieval.enable_reranking`
+4. Check reranking enabled: `.0k-rag.yml` → `retrieval.enable_reranking`
 
 **Solutions:**
 - First search: Expected, BGE loading
@@ -244,7 +244,7 @@ index_document(
 **Diagnosis:**
 1. Check git hook installed: `ls -la .git/hooks/post-commit`
 2. Check hook executable: `test -x .git/hooks/post-commit && echo "OK"`
-3. Check auto-index config: `.vex-rag.yml` → `indexing.auto_index_*`
+3. Check auto-index config: `.0k-rag.yml` → `indexing.auto_index_*`
 
 **Solutions:**
 - Hook missing: Copy from `~/.claude/plugins/0k-rag/hooks/post-commit.sh`
@@ -254,20 +254,20 @@ index_document(
 ### 5. Validate Configuration
 
 **When to use:**
-- After creating/updating `.vex-rag.yml`
+- After creating/updating `.0k-rag.yml`
 - MCP server not starting
 - Paths not resolving correctly
 
 **Steps:**
 ```bash
 # Check config file exists
-test -f .vex-rag.yml && echo "Config found" || echo "Config missing"
+test -f .0k-rag.yml && echo "Config found" || echo "Config missing"
 
 # Validate YAML syntax
-python3 -c "import yaml; yaml.safe_load(open('.vex-rag.yml'))" && echo "Valid YAML" || echo "Invalid YAML"
+python3 -c "import yaml; yaml.safe_load(open('.0k-rag.yml'))" && echo "Valid YAML" || echo "Invalid YAML"
 
 # Check database path exists
-DBPATH=$(python3 -c "import yaml; print(yaml.safe_load(open('.vex-rag.yml'))['database']['path'])")
+DBPATH=$(python3 -c "import yaml; print(yaml.safe_load(open('.0k-rag.yml'))['database']['path'])")
 test -d "$DBPATH" && echo "DB exists" || echo "DB missing (will be created)"
 
 # Check Ollama models
