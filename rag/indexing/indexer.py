@@ -1,10 +1,10 @@
 """
 Knowledge Base Indexer - Store contextual chunks in LanceDB
 
-Creates and manages the LanceDB vector database for Vex's knowledge base.
+Creates and manages the LanceDB vector database for the 0K-RAG knowledge base.
 Stores contextual chunks with embeddings for hybrid semantic + keyword search.
 
-Database Location: ~/Personal_AI_Infrastructure/lance_vex_kb/
+Database Location: Configured via .vex-rag.yml
 Security: 100% local storage, encrypted at rest via FileVault
 """
 
@@ -461,7 +461,7 @@ class KnowledgeBaseIndexer:
                     _security_scanner = RAGSecurityScanner(
                         strict_mode=False,  # Sanitize but don't block (default)
                         indexer_id="0k-rag",
-                        audit_log_path=str(Path.home() / "Personal_AI_Infrastructure/.claude/logs/rag-security-audit.jsonl")
+                        audit_log_path=str(Path.home() / ".0k-rag/logs/rag-security-audit.jsonl")
                     )
 
                 is_safe, sanitized_content, provenance = _security_scanner.scan_document(

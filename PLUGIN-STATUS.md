@@ -300,7 +300,7 @@ If you're considering using 0k-rag as a reference for your own Claude Code plugi
 - Documentation: https://github.com/0K-cool/0k-rag/blob/main/README.md
 
 **Philosophy:**
-> "Truth in advertising. Build what works, document honestly, improve iteratively." - Vex 🦖⚡
+> "Truth in advertising. Build what works, document honestly, improve iteratively."
 
 ---
 

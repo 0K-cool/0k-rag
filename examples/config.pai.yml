@@ -1,13 +1,13 @@
-# Vex RAG Configuration for Personal AI Infrastructure (PAI)
+# 0K-RAG Example Configuration
 # Copy this file to your project root as .vex-rag.yml
 
 project:
-  name: PAI
-  description: Personal AI Infrastructure documentation and knowledge base
+  name: my-project
+  description: My project documentation and knowledge base
 
 database:
   path: ./lance_vex_kb
-  backup_dir: ~/Library/CloudStorage/ProtonDrive-0k.8csjy@8shield.net/Vex-RAG-Backups/
+  backup_dir: ~/0k-rag-backups/
 
 indexing:
   chunk_size: 384
@@ -34,7 +34,7 @@ retrieval:
   reranker_model: BAAI/bge-reranker-large
 
 projects_to_index:
-  - name: PAI
+  - name: my-project
     paths:
       - .claude/
       - output/research/
@@ -43,15 +43,14 @@ projects_to_index:
 
 memory:
   enabled: true
-  storage_path: .claude/memory/vex-memory.jsonl
+  storage_path: .claude/memory/memory.jsonl
 
 security:
   # Allowed base directories for file operations (prevents path traversal)
   # All document paths must be within these directories
   allowed_base_paths:
-    - ~/Personal_AI_Infrastructure
-    - ~/Work/Vault/Work
-    - ~/VERSANT/Projects
+    - ~/my-project
+    - ~/documents
 
 backup:
   enabled: true

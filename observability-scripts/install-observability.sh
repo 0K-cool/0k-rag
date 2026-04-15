@@ -1,6 +1,6 @@
 #!/bin/bash
-# install-observability.sh - Install vex-rag observability to a project
-# Part of vex-rag plugin v1.0.0
+# install-observability.sh - Install 0k-rag observability to a project
+# Part of 0k-rag plugin v1.0.0
 #
 # Usage: ./install-observability.sh [target_directory]
 #
@@ -20,7 +20,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   vex-rag Observability Installation Helper 📊            ║${NC}"
+echo -e "${BLUE}║   0K-RAG Observability Installation Helper 📊             ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 

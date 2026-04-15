@@ -1,5 +1,5 @@
 #!/bin/bash
-# Vex RAG Auto-Indexing Hook
+# 0K-RAG Auto-Indexing Hook
 # Automatically index modified files after git commit
 #
 # Installation:

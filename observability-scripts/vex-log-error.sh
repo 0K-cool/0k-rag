@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # Configuration
-ERROR_LOG="${HOME}/Personal_AI_Infrastructure/.claude/logs/errors.jsonl"
+ERROR_LOG="${OKRAG_LOG_DIR:-${HOME}/.0k-rag/logs}/errors.jsonl"
 CONVERSATION_ID="${CONVERSATION_ID:-unknown}"
 
 # Parse arguments

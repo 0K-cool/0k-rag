@@ -7,7 +7,7 @@
 set -eo pipefail
 
 # Phase 3: Error Tracking Integration
-ERROR_LOG_SCRIPT="${HOME}/Personal_AI_Infrastructure/.claude/scripts/vex-log-error.sh"
+ERROR_LOG_SCRIPT="${OKRAG_LOG_DIR:-${HOME}/.0k-rag/logs}/../scripts/vex-log-error.sh"
 
 # Error handler
 error_handler() {

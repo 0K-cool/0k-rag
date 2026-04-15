@@ -1,4 +1,4 @@
-# 0K-RAG Plugin 🦖⚡
+# 0K-RAG Plugin
 
 > 100% local RAG system with hybrid search, contextual chunking, and BGE reranking
 
@@ -389,7 +389,7 @@ Install observability to your project for project-specific logs:
 
 ```bash
 # Navigate to your project
-cd ~/Personal_AI_Infrastructure
+cd ~/your-project
 
 # Run installation helper
 ~/tools/0k-rag/observability-scripts/install-observability.sh
@@ -909,7 +909,6 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 **Kelvin Lomboy**
 Cybersecurity Consultant, Puerto Rico
-🦖⚡ Professional excellence meets island living
 
 **Email:** 0k.8csjy@8shield.net
 **Website:** https://0k.cool

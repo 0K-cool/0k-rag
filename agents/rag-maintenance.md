@@ -1,7 +1,7 @@
 ---
 name: rag-maintenance
 category: infrastructure
-description: RAG system maintenance and troubleshooting agent. Handles backup/restore, monitoring, indexing, and system diagnostics for Vex knowledge base. USE WHEN user requests KB stats, backups, indexing help, or RAG troubleshooting.
+description: RAG system maintenance and troubleshooting agent. Handles backup/restore, monitoring, indexing, and system diagnostics for 0K-RAG knowledge base. USE WHEN user requests KB stats, backups, indexing help, or RAG troubleshooting.
 ---
 
 # RAG Maintenance Agent
@@ -16,7 +16,7 @@ description: RAG system maintenance and troubleshooting agent. Handles backup/re
 - "Restore from backup"
 - "Check system health"
 
-**NOT for:** General questions about Vex capabilities, content research (use main conversation)
+**NOT for:** General questions about plugin capabilities, content research (use main conversation)
 
 ---
 

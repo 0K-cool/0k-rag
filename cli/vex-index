@@ -1,4 +1,4 @@
-#!/Users/kelvinlomboy/tools/vex-rag/.venv/bin/python3
+#!/usr/bin/env python3
 """
 0K Index - Index documents into the RAG knowledge base from command line
 

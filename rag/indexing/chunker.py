@@ -32,7 +32,7 @@ class SmartChunker:
 
     def __init__(
         self,
-        chunk_size: int = 384,  # Target tokens (good for Vex docs/code)
+        chunk_size: int = 384,  # Target tokens (good for docs/code)
         overlap_percentage: float = 0.15,  # 15% overlap
         min_chunk_size: int = 100  # Minimum chunk size in tokens
     ):

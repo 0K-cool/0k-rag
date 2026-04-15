@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # Configuration
-ERROR_LOG="${HOME}/Personal_AI_Infrastructure/.claude/logs/errors.jsonl"
+ERROR_LOG="${OKRAG_LOG_DIR:-${HOME}/.0k-rag/logs}/errors.jsonl"
 YEAR_MONTH="${1:-$(date +%Y-%m)}"
 OUTPUT_FILE=""
 
@@ -41,7 +41,7 @@ fi
 
 # Generate report header
 REPORT=$(cat <<EOF
-# Vex Error Report - $YEAR_MONTH
+# 0K-RAG Error Report - $YEAR_MONTH
 
 **Generated:** $(date +"%Y-%m-%d %H:%M:%S %Z")
 **Period:** $YEAR_MONTH

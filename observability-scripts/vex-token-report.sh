@@ -9,7 +9,7 @@
 set -eo pipefail
 
 # Phase 3: Error Tracking Integration
-ERROR_LOG_SCRIPT="${HOME}/Personal_AI_Infrastructure/.claude/scripts/vex-log-error.sh"
+ERROR_LOG_SCRIPT="${OKRAG_LOG_DIR:-${HOME}/.0k-rag/logs}/../scripts/vex-log-error.sh"
 
 # Error handler
 error_handler() {
@@ -104,7 +104,7 @@ OP_NAME_AGG=$(echo "$MONTH_LOGS" | jq -r '[.operation_name, .tokens.total, .cost
 
 # Generate report
 cat > "$REPORT_FILE" <<EOF
-# Vex Token Usage Report - $MONTH_NAME
+# 0K-RAG Token Usage Report - $MONTH_NAME
 
 **Generated:** $(date +"%Y-%m-%d %H:%M:%S %Z")
 **Data Source:** \`.claude/logs/token-usage.jsonl\`

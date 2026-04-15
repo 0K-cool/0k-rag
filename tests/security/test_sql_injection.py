@@ -76,8 +76,8 @@ class TestSQLSanitization:
     def test_sanitize_project_injection(self):
         """Test SQL injection in project names"""
         # Attempt to match all projects
-        malicious = "PAI' OR '1'='1"
-        expected = "PAI'' OR ''1''=''1"
+        malicious = "TestProject' OR '1'='1"
+        expected = "TestProject'' OR ''1''=''1"
         assert _sanitize_sql_value(malicious) == expected
 
     def test_sanitize_path_traversal_combined(self):
@@ -187,7 +187,7 @@ class TestIntegrationWithLanceDB:
 
     def test_project_clause_construction(self):
         """Test project-based WHERE clauses are safe"""
-        malicious_project = "PAI' OR source_project != '"
+        malicious_project = "TestProject' OR source_project != '"
         safe_project = _sanitize_sql_value(malicious_project)
 
         # Build WHERE clause

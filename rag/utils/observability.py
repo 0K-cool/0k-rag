@@ -1,7 +1,7 @@
 """
 RAG Observability Integration
 
-Integrates 0k-rag with PAI Observability Framework (Phases 1-3).
+Optional observability integration for 0K-RAG operations.
 Logs token usage, latency, and errors for RAG operations.
 
 Portable Design:

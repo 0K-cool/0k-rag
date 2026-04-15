@@ -21,7 +21,7 @@ def main():
         epilog="""
 Examples:
   0k-index document.md
-  0k-index docs/playbooks/nist-ir.pdf --project PAI
+  0k-index docs/playbooks/nist-ir.pdf --project MyProject
   0k-index --pattern 'docs/**/*.pdf'
   0k-index file.md --no-sanitize
   0k-index --batch 'docs/rag/*.md'
@@ -100,7 +100,7 @@ Examples:
         from rag.indexing.sanitizer import Sanitizer
 
         # Initialize indexer
-        print(f"Initializing Vex indexer for {project_name}...", file=sys.stderr)
+        print(f"Initializing 0K-RAG indexer for {project_name}...", file=sys.stderr)
         indexer = KnowledgeBaseIndexer(db_path=db_path)
         indexer.initialize()
 

@@ -28,7 +28,7 @@ Use the MCP tool:
 ```python
 index_document(
     file_path="docs/new-doc.md",
-    project="PAI",  # Optional, defaults to config
+    project="MyProject",  # Optional, defaults to config
     enable_sanitization=True  # Optional, defaults to config
 )
 ```

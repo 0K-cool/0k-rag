@@ -6,9 +6,9 @@
 set -euo pipefail
 
 # Configuration
-ERROR_LOG="${HOME}/Personal_AI_Infrastructure/.claude/logs/errors.jsonl"
-TOKEN_LOG="${HOME}/Personal_AI_Infrastructure/.claude/logs/token-usage.jsonl"
-TRACES_DIR="${HOME}/Personal_AI_Infrastructure/.claude/logs/traces"
+ERROR_LOG="${OKRAG_LOG_DIR:-${HOME}/.0k-rag/logs}/errors.jsonl"
+TOKEN_LOG="${OKRAG_LOG_DIR:-${HOME}/.0k-rag/logs}/token-usage.jsonl"
+TRACES_DIR="${OKRAG_LOG_DIR:-${HOME}/.0k-rag/logs}/traces"
 PERIOD="24h"
 OUTPUT_JSON=false
 
@@ -129,7 +129,7 @@ else
   # Human-readable output
   cat <<EOF
 ╔════════════════════════════════════════════════════════════╗
-║           Vex System Health Dashboard 🦖⚡                  ║
+║           0K-RAG System Health Dashboard                    ║
 ╚════════════════════════════════════════════════════════════╝
 
 📅 Period: $DISPLAY_PERIOD
