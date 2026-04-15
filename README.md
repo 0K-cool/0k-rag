@@ -34,7 +34,7 @@ A production-ready Retrieval-Augmented Generation (RAG) system designed for **10
 ### Prerequisites
 
 - **Python 3.11+** (tested on 3.13)
-- **macOS** (built and tested on Apple Silicon)
+- **macOS** (Apple Silicon optimized). Windows support planned.
 - **Ollama** installed and running
 - **Claude Code CLI** (latest version)
 
