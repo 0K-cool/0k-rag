@@ -555,6 +555,10 @@ class KnowledgeBaseIndexer:
                         # many chunks at historical paths is an extreme outlier.
                         # If we hit the cap we warn and fall through to
                         # path-based dedup rather than acting on a partial set.
+                        # Note: `>=` is intentionally conservative — a document
+                        # with exactly HASH_LOOKUP_LIMIT chunks is treated as
+                        # truncated. Acceptable trade-off vs. the risk of
+                        # losing a would-be orphan on the boundary.
                         hash_matches = (
                             self.table.search()
                             .where(f"content_hash = '{content_hash}'")
@@ -562,13 +566,15 @@ class KnowledgeBaseIndexer:
                             .to_list()
                         )
                         if len(hash_matches) >= self.HASH_LOOKUP_LIMIT:
+                            # Lazy %-style logging: skips format eval when the
+                            # warning level is disabled (ruff G004 / pylint W1203).
                             logger.warning(
-                                f"hash-first dedup: content_hash "
-                                f"{content_hash[:16]}... has "
-                                f"{self.HASH_LOOKUP_LIMIT}+ chunks across "
-                                f"historical paths — results truncated. "
-                                f"Skipping move-detection and falling through "
-                                f"to path-based dedup."
+                                "hash-first dedup: content_hash %s... has "
+                                "%d+ chunks across historical paths — results "
+                                "truncated. Skipping move-detection and "
+                                "falling through to path-based dedup.",
+                                content_hash[:16],
+                                self.HASH_LOOKUP_LIMIT,
                             )
                             hash_matches = []
 
@@ -911,19 +917,21 @@ class KnowledgeBaseIndexer:
                 # sweep (e.g., per-project) before we can reason about
                 # orphans. Don't also emit the warning — that would
                 # double-log the same condition confusingly.
+                # Lazy %-style args: skip format eval when level disabled.
                 logger.error(
-                    f"vacuum: hit {self.VACUUM_SCAN_ROW_LIMIT}-row scan cap "
-                    f"— orphan detection is INCOMPLETE. Aborting to avoid "
-                    f"false orphan claims."
+                    "vacuum: hit %d-row scan cap — orphan detection is "
+                    "INCOMPLETE. Aborting to avoid false orphan claims.",
+                    self.VACUUM_SCAN_ROW_LIMIT,
                 )
                 result["error"] = "scan_row_limit_reached"
                 return result
             if len(all_rows) >= self.VACUUM_SCAN_WARN_THRESHOLD:
                 logger.warning(
-                    f"vacuum: scanning {len(all_rows)} rows — approaching "
-                    f"the {self.VACUUM_SCAN_ROW_LIMIT} hard cap. Consider "
-                    f"paginating or running per-project sweeps to avoid "
-                    f"truncation."
+                    "vacuum: scanning %d rows — approaching the %d hard "
+                    "cap. Consider paginating or running per-project "
+                    "sweeps to avoid truncation.",
+                    len(all_rows),
+                    self.VACUUM_SCAN_ROW_LIMIT,
                 )
             unique_paths = sorted({row["file_path"] for row in all_rows})
             result["scanned_paths"] = len(unique_paths)
@@ -988,12 +996,18 @@ class KnowledgeBaseIndexer:
             return result
 
         except TimeoutError as e:
-            logger.error(f"vacuum: write lock timeout: {e}")
-            result["error"] = f"write_lock_timeout: {e}"
+            # Full exception detail stays in the logger call (local log
+            # file only). The structured `error` key on the returned
+            # dict carries ONLY the error class name — callers sometimes
+            # serialize this to log aggregators / API responses, and
+            # exception messages can embed paths, SQL fragments, or
+            # connection strings we shouldn't leak there.
+            logger.error("vacuum: write lock timeout: %s", e)
+            result["error"] = "write_lock_timeout"
             return result
         except Exception as e:
-            logger.error(f"vacuum failed: {e}")
-            result["error"] = f"exception: {type(e).__name__}: {e}"
+            logger.error("vacuum failed: %s: %s", type(e).__name__, e)
+            result["error"] = f"exception: {type(e).__name__}"
             return result
 
     def get_stats(self) -> Dict:

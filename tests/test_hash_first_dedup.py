@@ -245,6 +245,83 @@ class HashFirstDedupTests(unittest.TestCase):
             1,
         )
 
+    def test_hash_lookup_cap_falls_through_to_path_based(self) -> None:
+        """When HASH_LOOKUP_LIMIT is hit, move-detection is skipped.
+
+        Same temporary-class-attribute trick as the vacuum scan-cap test:
+        shrink the limit so the tiny synthetic fixture exhausts it,
+        verify the move-retarget branch was bypassed (i.e. chunks at
+        the old path remain + new path gets re-indexed via the
+        path-based branch instead of silently retargeted from partial
+        hash results).
+
+        Observable contract: with hash_matches truncated to [], the
+        indexer falls into the `Step 2: path-based lookup` branch. For
+        a truly-new path, that branch finds no existing rows and
+        proceeds to chunk/embed — which requires the full pipeline we
+        don't have in tests. So we stop the assertion at the branch
+        boundary by checking that the move-retarget didn't happen
+        (old chunks untouched at old_path) and that index_document
+        didn't early-return with the old chunk count.
+        """
+        from unittest.mock import patch
+
+        from rag.indexing.indexer import KnowledgeBaseIndexer
+
+        content = "content that spans multiple historical paths"
+        chash = self._hash(content)
+        old_path_a = os.path.join(self.tmp, "hist_a", "doc.md")
+        old_path_b = os.path.join(self.tmp, "hist_b", "doc.md")
+        new_path = self._write_real_file("current/doc.md", content)
+
+        # Three existing rows across two historical paths — enough to
+        # saturate HASH_LOOKUP_LIMIT=2 and exercise the cap branch.
+        self._add_rows([
+            _synthetic_chunk_row(old_path_a, chash, 0, content),
+            _synthetic_chunk_row(old_path_a, chash, 1, content),
+            _synthetic_chunk_row(old_path_b, chash, 0, content),
+        ])
+
+        doc = _StubDocument(
+            content=content, file_path=new_path,
+            project="test-project", metadata={},
+        )
+
+        # Mock SmartChunker.chunk_document to return []. This lets the
+        # path-based branch's "no chunks generated" early-return fire
+        # without needing the real chunker/embedder/Ollama stack.
+        with (
+            patch.object(KnowledgeBaseIndexer, "HASH_LOOKUP_LIMIT", 2),
+            patch(
+                "rag.indexing.chunker.SmartChunker.chunk_document",
+                return_value=[],
+            ),
+        ):
+            returned = self.indexer.index_document(
+                doc, enable_security_scan=False,
+            )
+
+        # The cap path falls through → no retarget happened → old chunks
+        # are untouched at their historical paths.
+        self.assertGreater(
+            self.indexer.table.count_rows(f"file_path = '{old_path_a}'"),
+            0,
+            "cap-hit must NOT retarget historical chunks",
+        )
+        self.assertGreater(
+            self.indexer.table.count_rows(f"file_path = '{old_path_b}'"),
+            0,
+            "cap-hit must NOT retarget historical chunks",
+        )
+        # And new path did not get the old chunks retargeted onto it.
+        self.assertEqual(
+            self.indexer.table.count_rows(f"file_path = '{new_path}'"),
+            0,
+            "no retarget → new_path must not own historical chunks",
+        )
+        # "No content to index" path returns 0.
+        self.assertEqual(returned, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -236,22 +236,22 @@ class VacuumOrphansTests(unittest.TestCase):
         """Hitting the hard scan cap aborts with scan_row_limit_reached.
 
         Uses the class-level tunable so we don't need to synthesize 1M rows.
+        patch.object restores the original value even if the test body
+        raises — safer than a raw attribute mutation if parallel test
+        runners (pytest-xdist) are ever introduced.
         """
+        from unittest.mock import patch
+
+        from rag.indexing.indexer import KnowledgeBaseIndexer
+
         alive = self._write_real_file("alive.md")
         self._add_rows([_synthetic_chunk_row(alive, "h1", 0)])
 
-        # Temporarily shrink the cap so a 1-row table exhausts it. This
-        # is the exact observable contract operators would see at the
-        # real 1M-row cap, without paying the synthesis cost.
-        original_cap = type(self.indexer).VACUUM_SCAN_ROW_LIMIT
-        original_warn = type(self.indexer).VACUUM_SCAN_WARN_THRESHOLD
-        try:
-            type(self.indexer).VACUUM_SCAN_ROW_LIMIT = 1
-            type(self.indexer).VACUUM_SCAN_WARN_THRESHOLD = 1
+        with (
+            patch.object(KnowledgeBaseIndexer, "VACUUM_SCAN_ROW_LIMIT", 1),
+            patch.object(KnowledgeBaseIndexer, "VACUUM_SCAN_WARN_THRESHOLD", 1),
+        ):
             report = self.indexer.vacuum_orphans(dry_run=True)
-        finally:
-            type(self.indexer).VACUUM_SCAN_ROW_LIMIT = original_cap
-            type(self.indexer).VACUUM_SCAN_WARN_THRESHOLD = original_warn
 
         self.assertEqual(report["error"], "scan_row_limit_reached")
         # Abort before scanning unique paths — scanned_paths stays 0.

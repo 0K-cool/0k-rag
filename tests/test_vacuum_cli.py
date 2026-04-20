@@ -73,9 +73,14 @@ class VacuumCLIExitCodeTests(unittest.TestCase):
         self.assertEqual(code, 2)
 
     def test_timeout_error_returns_two(self) -> None:
-        code = self._run(
-            {"error": "write_lock_timeout: waited 30s"}, ["--delete"],
-        )
+        # The error key carries ONLY the error class name — full
+        # exception detail is redacted to avoid leaking paths/SQL
+        # fragments into downstream logs (see indexer.vacuum_orphans).
+        code = self._run({"error": "write_lock_timeout"}, ["--delete"])
+        self.assertEqual(code, 2)
+
+    def test_generic_exception_error_returns_two(self) -> None:
+        code = self._run({"error": "exception: RuntimeError"}, [])
         self.assertEqual(code, 2)
 
     def test_uninitialized_table_error_returns_two(self) -> None:
