@@ -204,6 +204,59 @@ class VacuumOrphansTests(unittest.TestCase):
         self.assertEqual(report["scanned_paths"], 0)
         self.assertEqual(report["orphan_paths"], [])
         self.assertEqual(report["deleted_chunk_count"], 0)
+        self.assertIsNone(
+            report["error"], "clean sweep must not set an error"
+        )
+
+    def test_clean_sweep_reports_no_error(self) -> None:
+        """Successful vacuum (orphan or not) leaves error=None."""
+        alive = self._write_real_file("alive.md")
+        orphan = os.path.join(self.tmp, "gone.md")
+        self._add_rows([
+            _synthetic_chunk_row(alive, "hash-alive", 0),
+            _synthetic_chunk_row(orphan, "hash-orphan", 0),
+        ])
+        report = self.indexer.vacuum_orphans(dry_run=False)
+        self.assertIsNone(report["error"])
+        self.assertEqual(report["deleted_chunk_count"], 1)
+
+    def test_error_key_set_when_table_uninitialized(self) -> None:
+        """A raw indexer with no table set surfaces table_not_initialized."""
+        from rag.indexing.indexer import KnowledgeBaseIndexer
+
+        raw_indexer = KnowledgeBaseIndexer(
+            db_path=os.path.join(self.tmp, "kb_not_init")
+        )
+        # Deliberately do NOT call initialize() — table stays None.
+        report = raw_indexer.vacuum_orphans(dry_run=True)
+        self.assertEqual(report["error"], "table_not_initialized")
+        self.assertEqual(report["scanned_paths"], 0)
+
+    def test_error_key_set_when_scan_row_limit_reached(self) -> None:
+        """Hitting the hard scan cap aborts with scan_row_limit_reached.
+
+        Uses the class-level tunable so we don't need to synthesize 1M rows.
+        """
+        alive = self._write_real_file("alive.md")
+        self._add_rows([_synthetic_chunk_row(alive, "h1", 0)])
+
+        # Temporarily shrink the cap so a 1-row table exhausts it. This
+        # is the exact observable contract operators would see at the
+        # real 1M-row cap, without paying the synthesis cost.
+        original_cap = type(self.indexer).VACUUM_SCAN_ROW_LIMIT
+        original_warn = type(self.indexer).VACUUM_SCAN_WARN_THRESHOLD
+        try:
+            type(self.indexer).VACUUM_SCAN_ROW_LIMIT = 1
+            type(self.indexer).VACUUM_SCAN_WARN_THRESHOLD = 1
+            report = self.indexer.vacuum_orphans(dry_run=True)
+        finally:
+            type(self.indexer).VACUUM_SCAN_ROW_LIMIT = original_cap
+            type(self.indexer).VACUUM_SCAN_WARN_THRESHOLD = original_warn
+
+        self.assertEqual(report["error"], "scan_row_limit_reached")
+        # Abort before scanning unique paths — scanned_paths stays 0.
+        self.assertEqual(report["scanned_paths"], 0)
+        self.assertEqual(report["deleted_chunk_count"], 0)
 
 
 if __name__ == "__main__":

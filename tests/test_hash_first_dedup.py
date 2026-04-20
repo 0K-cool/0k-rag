@@ -216,6 +216,8 @@ class HashFirstDedupTests(unittest.TestCase):
 
     def test_same_content_same_apostrophe_path_is_noop(self) -> None:
         """Case 1a regression with an apostrophe — must still skip."""
+        from rag.indexing.indexer import _sanitize_sql_value
+
         content = "unchanged with apostrophe"
         chash = self._hash(content)
         # File must be at an allowed_base_path (inside self.tmp).
@@ -233,9 +235,13 @@ class HashFirstDedupTests(unittest.TestCase):
         returned = self.indexer.index_document(doc, enable_security_scan=False)
 
         self.assertEqual(returned, 1, "apostrophe in path must not break same-path skip")
-        # Path count unchanged.
+        # Verify at DB level by routing through the same sanitizer the
+        # production code uses — avoids silently skipping the test when
+        # the escape scheme changes.
         self.assertEqual(
-            self.indexer.table.count_rows(f"file_path = '{alive.replace(chr(39), chr(39)*2)}'"),
+            self.indexer.table.count_rows(
+                f"file_path = '{_sanitize_sql_value(alive)}'"
+            ),
             1,
         )
 

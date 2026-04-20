@@ -175,6 +175,19 @@ def _validate_path(user_path: str, allowed_bases: Optional[List[Path]] = None) -
 class KnowledgeBaseIndexer:
     """Manage LanceDB knowledge base"""
 
+    # --- dedup + vacuum tunables ---
+    # LanceDB has no DISTINCT, so we load rows and dedupe in memory.
+    # HASH_LOOKUP_LIMIT caps the per-call hash-first query (documents with
+    # more chunks across historical paths than this fall back to
+    # path-based dedup rather than acting on a partial set).
+    # VACUUM_SCAN_ROW_LIMIT is the hard cap for vacuum_orphans(); past
+    # this, vacuum aborts so we don't report false orphans.
+    # VACUUM_SCAN_WARN_THRESHOLD tells operators to paginate / split by
+    # project before they hit the hard cap.
+    HASH_LOOKUP_LIMIT: int = 10_000
+    VACUUM_SCAN_ROW_LIMIT: int = 1_000_000
+    VACUUM_SCAN_WARN_THRESHOLD: int = 100_000
+
     def __init__(self, db_path: str = "lance_vex_kb"):  # NOTE: lance_vex_kb is the legacy default path — preserved for existing installations
         """
         Initialize indexer
@@ -538,24 +551,24 @@ class KnowledgeBaseIndexer:
                         safe_path = _sanitize_sql_value(raw_path)  # for WHERE only
 
                         # Step 1: hash-first lookup (catches moves and true no-ops).
-                        # Bounded at 10k rows — a document with >10k chunks at
-                        # historical paths is an extreme outlier. If we hit the
-                        # cap we warn and fall through to path-based dedup for
-                        # safety rather than processing a partial set.
-                        HASH_LOOKUP_LIMIT = 10_000
+                        # Bounded by HASH_LOOKUP_LIMIT — a document with that
+                        # many chunks at historical paths is an extreme outlier.
+                        # If we hit the cap we warn and fall through to
+                        # path-based dedup rather than acting on a partial set.
                         hash_matches = (
                             self.table.search()
                             .where(f"content_hash = '{content_hash}'")
-                            .limit(HASH_LOOKUP_LIMIT)
+                            .limit(self.HASH_LOOKUP_LIMIT)
                             .to_list()
                         )
-                        if len(hash_matches) >= HASH_LOOKUP_LIMIT:
+                        if len(hash_matches) >= self.HASH_LOOKUP_LIMIT:
                             logger.warning(
                                 f"hash-first dedup: content_hash "
-                                f"{content_hash[:16]}... has {HASH_LOOKUP_LIMIT}+ "
-                                f"chunks across historical paths — results "
-                                f"truncated. Skipping move-detection and falling "
-                                f"through to path-based dedup."
+                                f"{content_hash[:16]}... has "
+                                f"{self.HASH_LOOKUP_LIMIT}+ chunks across "
+                                f"historical paths — results truncated. "
+                                f"Skipping move-detection and falling through "
+                                f"to path-based dedup."
                             )
                             hash_matches = []
 
@@ -884,32 +897,34 @@ class KnowledgeBaseIndexer:
 
         # Pulling every file_path in the KB. LanceDB doesn't expose DISTINCT,
         # so we load the column and dedupe in memory. At ~150 docs this is
-        # trivial; at the hard cap below we warn operators that pagination
-        # may be needed to avoid memory pressure.
-        SCAN_ROW_LIMIT = 1_000_000
-        SCAN_WARN_THRESHOLD = 100_000
-
+        # trivial; near the hard cap we warn operators that pagination may
+        # be needed to avoid memory pressure.
         try:
             all_rows = (
                 self.table.search()
                 .select(["file_path"])
-                .limit(SCAN_ROW_LIMIT)
+                .limit(self.VACUUM_SCAN_ROW_LIMIT)
                 .to_list()
             )
-            if len(all_rows) >= SCAN_WARN_THRESHOLD:
-                logger.warning(
-                    f"vacuum: scanning {len(all_rows)} rows — approaching the "
-                    f"{SCAN_ROW_LIMIT} hard cap. Consider paginating or "
-                    f"running per-project sweeps to avoid truncation."
-                )
-            if len(all_rows) >= SCAN_ROW_LIMIT:
+            if len(all_rows) >= self.VACUUM_SCAN_ROW_LIMIT:
+                # Hard cap hit → abort early; operator needs to split the
+                # sweep (e.g., per-project) before we can reason about
+                # orphans. Don't also emit the warning — that would
+                # double-log the same condition confusingly.
                 logger.error(
-                    f"vacuum: hit {SCAN_ROW_LIMIT}-row scan cap — orphan "
-                    f"detection is INCOMPLETE. Aborting to avoid false "
-                    f"orphan claims."
+                    f"vacuum: hit {self.VACUUM_SCAN_ROW_LIMIT}-row scan cap "
+                    f"— orphan detection is INCOMPLETE. Aborting to avoid "
+                    f"false orphan claims."
                 )
                 result["error"] = "scan_row_limit_reached"
                 return result
+            if len(all_rows) >= self.VACUUM_SCAN_WARN_THRESHOLD:
+                logger.warning(
+                    f"vacuum: scanning {len(all_rows)} rows — approaching "
+                    f"the {self.VACUUM_SCAN_ROW_LIMIT} hard cap. Consider "
+                    f"paginating or running per-project sweeps to avoid "
+                    f"truncation."
+                )
             unique_paths = sorted({row["file_path"] for row in all_rows})
             result["scanned_paths"] = len(unique_paths)
 
