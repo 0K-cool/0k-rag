@@ -529,20 +529,40 @@ class KnowledgeBaseIndexer:
             if self.table is not None:
                 try:
                     with self._write_lock():
-                        # Security: sanitize file_path to prevent SQL injection (VUL-001 fix)
-                        safe_path = _sanitize_sql_value(document.file_path)
+                        # SQL-escape is ONLY for interpolation into LanceDB WHERE
+                        # clauses. In-memory comparisons (membership tests) and
+                        # parameterized `update(values=...)` must use the raw
+                        # path — otherwise apostrophes in filenames cause silent
+                        # mismatches or get doubled in the stored data.
+                        raw_path = document.file_path
+                        safe_path = _sanitize_sql_value(raw_path)  # for WHERE only
 
                         # Step 1: hash-first lookup (catches moves and true no-ops).
+                        # Bounded at 10k rows — a document with >10k chunks at
+                        # historical paths is an extreme outlier. If we hit the
+                        # cap we warn and fall through to path-based dedup for
+                        # safety rather than processing a partial set.
+                        HASH_LOOKUP_LIMIT = 10_000
                         hash_matches = (
                             self.table.search()
                             .where(f"content_hash = '{content_hash}'")
-                            .limit(50)
+                            .limit(HASH_LOOKUP_LIMIT)
                             .to_list()
                         )
+                        if len(hash_matches) >= HASH_LOOKUP_LIMIT:
+                            logger.warning(
+                                f"hash-first dedup: content_hash "
+                                f"{content_hash[:16]}... has {HASH_LOOKUP_LIMIT}+ "
+                                f"chunks across historical paths — results "
+                                f"truncated. Skipping move-detection and falling "
+                                f"through to path-based dedup."
+                            )
+                            hash_matches = []
+
                         if hash_matches:
                             existing_paths = {row["file_path"] for row in hash_matches}
 
-                            if safe_path in existing_paths:
+                            if raw_path in existing_paths:
                                 # Case 1a — same path + same hash → unchanged, skip.
                                 count_result = self.table.count_rows(
                                     f"file_path = '{safe_path}'"
@@ -565,7 +585,7 @@ class KnowledgeBaseIndexer:
                             old_paths = sorted(existing_paths)
                             logger.info(
                                 f"Move detected — content at {old_paths} now at "
-                                f"{safe_path}. Updating file_path pointer."
+                                f"{raw_path}. Updating file_path pointer."
                             )
                             new_last_updated = datetime.now().isoformat()
                             for old_path in old_paths:
@@ -575,8 +595,10 @@ class KnowledgeBaseIndexer:
                                         f"content_hash = '{content_hash}' "
                                         f"AND file_path = '{safe_old}'"
                                     ),
+                                    # values={} is parameterized by LanceDB — pass
+                                    # raw strings, not SQL-escaped ones.
                                     values={
-                                        "file_path": safe_path,
+                                        "file_path": raw_path,
                                         "last_updated": new_last_updated,
                                     },
                                 )
@@ -584,7 +606,7 @@ class KnowledgeBaseIndexer:
                                 f"file_path = '{safe_path}'"
                             )
                             logger.info(
-                                f"Moved {count_result} chunks to {safe_path} "
+                                f"Moved {count_result} chunks to {raw_path} "
                                 f"(no re-embedding)"
                             )
                             notifier.finish(
@@ -852,22 +874,42 @@ class KnowledgeBaseIndexer:
             "deleted_chunk_count": 0,
             "scanned_paths": 0,
             "match_filter": match,
+            "error": None,  # non-None on partial failure or early exit
         }
 
         if self.table is None:
             logger.warning("vacuum_orphans called before table initialized")
+            result["error"] = "table_not_initialized"
             return result
 
+        # Pulling every file_path in the KB. LanceDB doesn't expose DISTINCT,
+        # so we load the column and dedupe in memory. At ~150 docs this is
+        # trivial; at the hard cap below we warn operators that pagination
+        # may be needed to avoid memory pressure.
+        SCAN_ROW_LIMIT = 1_000_000
+        SCAN_WARN_THRESHOLD = 100_000
+
         try:
-            # Pull every file_path in the KB. LanceDB doesn't expose a DISTINCT,
-            # so we load the column and dedupe in memory. For a 150-doc KB this
-            # is fine (~150KB of strings); at 100k+ docs consider paginating.
             all_rows = (
                 self.table.search()
                 .select(["file_path"])
-                .limit(1_000_000)
+                .limit(SCAN_ROW_LIMIT)
                 .to_list()
             )
+            if len(all_rows) >= SCAN_WARN_THRESHOLD:
+                logger.warning(
+                    f"vacuum: scanning {len(all_rows)} rows — approaching the "
+                    f"{SCAN_ROW_LIMIT} hard cap. Consider paginating or "
+                    f"running per-project sweeps to avoid truncation."
+                )
+            if len(all_rows) >= SCAN_ROW_LIMIT:
+                logger.error(
+                    f"vacuum: hit {SCAN_ROW_LIMIT}-row scan cap — orphan "
+                    f"detection is INCOMPLETE. Aborting to avoid false "
+                    f"orphan claims."
+                )
+                result["error"] = "scan_row_limit_reached"
+                return result
             unique_paths = sorted({row["file_path"] for row in all_rows})
             result["scanned_paths"] = len(unique_paths)
 
@@ -932,9 +974,11 @@ class KnowledgeBaseIndexer:
 
         except TimeoutError as e:
             logger.error(f"vacuum: write lock timeout: {e}")
+            result["error"] = f"write_lock_timeout: {e}"
             return result
         except Exception as e:
             logger.error(f"vacuum failed: {e}")
+            result["error"] = f"exception: {type(e).__name__}: {e}"
             return result
 
     def get_stats(self) -> Dict:

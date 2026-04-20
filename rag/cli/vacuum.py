@@ -93,12 +93,16 @@ def main() -> int:
             "  0k-vacuum --delete --json # machine-readable output\n"
         ),
     )
-    parser.add_argument(
+    # --delete and --dry-run are mutually exclusive by construction. argparse
+    # emits a clean `--help` grouping + error message when both are passed,
+    # instead of requiring a manual post-parse check.
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
         "--delete",
         action="store_true",
         help="Delete orphan chunks (default: dry-run preview only)",
     )
-    parser.add_argument(
+    mode_group.add_argument(
         "--dry-run",
         action="store_true",
         help=(
@@ -140,13 +144,6 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    if args.delete and args.dry_run:
-        print(
-            "ERROR: --delete and --dry-run are mutually exclusive. Pick one.",
-            file=sys.stderr,
-        )
-        return 2
-
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(levelname)s %(name)s: %(message)s",
@@ -174,11 +171,23 @@ def main() -> int:
         print(f"ERROR: vacuum failed: {exc}", file=sys.stderr)
         return 2
 
-    # Emit.
+    # Emit before deciding the exit code — operators must always see the
+    # report (including partial results), not just an error message.
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
         print(_format_human(report))
+
+    # vacuum_orphans records a non-None "error" on partial/failed sweeps
+    # (timeout, row-cap exhaustion, unexpected exception). Surface that as
+    # a non-zero exit code so scripts / automation can distinguish a clean
+    # sweep from one that stopped mid-flight with partial deletions.
+    if report.get("error"):
+        print(
+            f"WARNING: vacuum reported an error: {report['error']}",
+            file=sys.stderr,
+        )
+        return 2
 
     return 0
 

@@ -42,6 +42,10 @@ env/
 .coverage
 htmlcov/
 .tox/
+# Vacuum-orphans tests create tmpdirs here because the indexer's
+# allowed_base_paths guard restricts paths to cwd; the parent scratch
+# dir is never cleaned — it accumulates harmless empty subdirs.
+tests/.scratch/
 
 # LanceDB databases (project-specific, not in plugin)
 lance_*/

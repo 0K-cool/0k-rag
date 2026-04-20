@@ -5,6 +5,21 @@ All notable changes to the 0K-RAG Plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-04-20
+
+### Fixed
+- **Hash-first dedup: raw-vs-escaped path mixing (PR #2 follow-up)** — `safe_path in existing_paths` was comparing a SQL-escaped string against raw paths pulled from LanceDB. Files whose names contained an apostrophe silently missed the same-path-skip branch and fell through to path-based dedup, which then rewrote perfectly good chunks. Also, the `table.update(values={"file_path": safe_path})` call was storing the SQL-escaped form on disk instead of the raw path. Both call sites now use `document.file_path` (raw) for in-memory comparisons and `values`, while keeping `_sanitize_sql_value()` strictly scoped to `WHERE`-clause interpolation.
+- **Hash-first dedup: hard-coded `limit(50)` on hash lookup** — raised to `10_000` with explicit cap detection. When the cap is hit, the indexer logs a warning, aborts the move-detection branch (instead of acting on a partial row set), and falls through to path-based dedup for safety.
+- **`vacuum_orphans()` silent partial failures** — the method previously returned a mid-flight `result` dict on `TimeoutError` or general `Exception` without distinguishing the partial-success case from a clean sweep. Added an `"error"` key (string reason or `None`) that the `0k-vacuum` CLI surfaces as exit code 2, so scripts / automation can tell clean sweeps from interrupted ones.
+
+### Added
+- **Hash-first branch unit tests** (`tests/test_hash_first_dedup.py`) — 4 tests exercising same-path-skip, cross-path move-retarget, apostrophe-in-path regression (proves the SQL sanitize fix), and unchanged-with-apostrophe noop. Direct LanceDB population strategy identical to vacuum tests; no chunker/embedder mocking needed because the hash-first branches return before the pipeline is instantiated.
+- **Large-scan warning in `vacuum_orphans()`** — logs a warning when the scan hits `100_000` rows (approaching the `1_000_000` hard cap) so operators can paginate or run per-project sweeps before truncation silently produces false orphan claims.
+
+### Changed
+- **`0k-vacuum` CLI: `--delete` / `--dry-run` mutual exclusion** — replaced the manual post-parse check with `argparse.add_mutually_exclusive_group()`. Produces clean `--help` grouping and a standard error message.
+- **`.gitignore`**: added `tests/.scratch/` — the parent scratch dir used by `vacuum_orphans` / `hash_first_dedup` tests (tmpdirs must live inside the repo tree to satisfy the indexer's `allowed_base_paths` guard).
+
 ## [1.5.0] - 2026-04-20
 
 ### Added
