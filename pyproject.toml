@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "0k-rag"
-version = "1.4.0"
+version = "1.5.0"
 description = "100% local RAG system - Python library + MCP server + CLI tools + slash commands"
 authors = [
     {name = "Kelvin Lomboy", email = "0k.8csjy@8shield.net"}
@@ -52,6 +52,7 @@ webhooks = [
 0k-search = "rag.cli.search:main"
 0k-index = "rag.cli.index:main"
 0k-rag = "rag.cli.main:main"
+0k-vacuum = "rag.cli.vacuum:main"
 
 [project.urls]
 Homepage = "https://github.com/0K-cool/0k-rag"

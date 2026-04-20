@@ -507,30 +507,114 @@ class KnowledgeBaseIndexer:
             content_hash = hashlib.sha256(document.content.encode('utf-8')).hexdigest()
             logger.info(f"Document content hash: {content_hash[:16]}...")
 
-            # Check for existing chunks from this document (content-based deduplication)
-            # Write lock protects the check-then-delete to prevent TOCTOU races
+            # Smart dedup — hash-first, then path-based
+            #
+            # Flow:
+            #   1. Look up rows by content_hash (catches moves/renames).
+            #      a. If hash matches at the same file_path → truly unchanged, skip.
+            #      b. If hash matches at a *different* file_path → move/rename
+            #         detected; update the file_path pointer on existing chunks
+            #         instead of re-embedding.
+            #   2. Otherwise look up by file_path (catches content changes at the
+            #      same path); delete the stale chunks, then fall through to
+            #      chunking + embedding.
+            #
+            # Rationale for hash-first: the original logic (path-first) treated
+            # any moved file as a brand-new document. When the file moved from
+            # path A to path B, chunks at A became orphans and B was re-embedded
+            # at full cost. Hash-first avoids both the wasted embedding and the
+            # orphan pollution of the search index.
+            #
+            # Write lock protects the read/update/delete sequence against TOCTOU.
             if self.table is not None:
                 try:
                     with self._write_lock():
-                        # Check if document already indexed
-                        # Security: Sanitize file_path to prevent SQL injection (VUL-001 fix)
+                        # Security: sanitize file_path to prevent SQL injection (VUL-001 fix)
                         safe_path = _sanitize_sql_value(document.file_path)
-                        existing = self.table.search().where(f"file_path = '{safe_path}'").limit(1).to_list()
-                        if existing:
-                            existing_hash = existing[0].get('content_hash', None)
 
-                            if existing_hash == content_hash:
-                                # Content unchanged - skip re-indexing
-                                count_result = self.table.count_rows(f"file_path = '{safe_path}'")
-                                logger.info(f"Document unchanged (hash match) - skipping re-indexing of {count_result} chunks")
-                                notifier.finish(success=True, message=f"Skipped (unchanged): {count_result} existing chunks")
+                        # Step 1: hash-first lookup (catches moves and true no-ops).
+                        hash_matches = (
+                            self.table.search()
+                            .where(f"content_hash = '{content_hash}'")
+                            .limit(50)
+                            .to_list()
+                        )
+                        if hash_matches:
+                            existing_paths = {row["file_path"] for row in hash_matches}
+
+                            if safe_path in existing_paths:
+                                # Case 1a — same path + same hash → unchanged, skip.
+                                count_result = self.table.count_rows(
+                                    f"file_path = '{safe_path}'"
+                                )
+                                logger.info(
+                                    f"Document unchanged (path+hash match) — skipping "
+                                    f"{count_result} existing chunks"
+                                )
+                                notifier.finish(
+                                    success=True,
+                                    message=f"Skipped (unchanged): {count_result} existing chunks",
+                                )
                                 return count_result
-                            else:
-                                # Content changed - delete old chunks and re-index
-                                count_result = self.table.count_rows(f"file_path = '{safe_path}'")
-                                logger.info(f"Document content changed - removing {count_result} existing chunks before re-indexing")
-                                self.table.delete(f"file_path = '{safe_path}'")
-                                logger.info(f"Deleted {count_result} existing chunks for {document.file_path}")
+
+                            # Case 1b — move/rename. Retarget the pointer rather
+                            # than re-embed. We only retarget chunks that share
+                            # BOTH the old path and the content hash so we never
+                            # clobber a legitimate different-content doc sitting
+                            # at the same old path.
+                            old_paths = sorted(existing_paths)
+                            logger.info(
+                                f"Move detected — content at {old_paths} now at "
+                                f"{safe_path}. Updating file_path pointer."
+                            )
+                            new_last_updated = datetime.now().isoformat()
+                            for old_path in old_paths:
+                                safe_old = _sanitize_sql_value(old_path)
+                                self.table.update(
+                                    where=(
+                                        f"content_hash = '{content_hash}' "
+                                        f"AND file_path = '{safe_old}'"
+                                    ),
+                                    values={
+                                        "file_path": safe_path,
+                                        "last_updated": new_last_updated,
+                                    },
+                                )
+                            count_result = self.table.count_rows(
+                                f"file_path = '{safe_path}'"
+                            )
+                            logger.info(
+                                f"Moved {count_result} chunks to {safe_path} "
+                                f"(no re-embedding)"
+                            )
+                            notifier.finish(
+                                success=True,
+                                message=f"Moved: pointer updated for {count_result} chunks",
+                            )
+                            return count_result
+
+                        # Step 2: path-based lookup (catches changed content at
+                        # the same path — hash didn't match above, so either the
+                        # path is new or the content differs).
+                        existing = (
+                            self.table.search()
+                            .where(f"file_path = '{safe_path}'")
+                            .limit(1)
+                            .to_list()
+                        )
+                        if existing:
+                            count_result = self.table.count_rows(
+                                f"file_path = '{safe_path}'"
+                            )
+                            logger.info(
+                                f"Document content changed — removing {count_result} "
+                                f"existing chunks before re-indexing"
+                            )
+                            self.table.delete(f"file_path = '{safe_path}'")
+                            logger.info(
+                                f"Deleted {count_result} existing chunks for "
+                                f"{document.file_path}"
+                            )
                 except TimeoutError as e:
                     logger.error(f"Write lock timeout during dedup check: {e}")
                     notifier.finish(success=False, message=f"Write lock timeout: {e}")
@@ -719,6 +803,139 @@ class KnowledgeBaseIndexer:
         except Exception as e:
             logger.error(f"Delete failed: {e}")
             return 0
+
+    def vacuum_orphans(
+        self,
+        dry_run: bool = True,
+        match: Optional[str] = None,
+    ) -> Dict:
+        """
+        Find (and optionally delete) chunks whose file_path no longer exists
+        on disk.
+
+        Orphans accumulate when a source file is deleted or moved without
+        going through index_document (pre-hash-first-dedup releases did not
+        catch renames, so moves produced orphan chunks at the old path).
+        This method walks every distinct file_path in the KB, stats each,
+        and reports which paths are gone.
+
+        Safety discipline: orphan detection is NOT implicit permission to
+        delete. RAG knowledge may be valuable independent of whether the
+        source file still exists. Deletion requires explicit dry_run=False
+        PLUS an optional `match` filter that restricts pruning to a subset
+        of the orphan paths — this makes it harder to accidentally wipe a
+        category the caller didn't mean to touch.
+
+        Args:
+            dry_run: when True (default), list orphans without deleting.
+                     Re-run with dry_run=False to actually prune.
+            match:   substring filter applied to file_path before deletion.
+                     Only orphan paths containing this substring are deleted
+                     (the full orphan list is still reported). When None
+                     and dry_run=False, every orphan is deleted — use with
+                     care and only after reviewing the dry-run report.
+
+        Returns:
+            dict with:
+              - 'orphan_paths': sorted list of file_paths no longer on disk
+                 (unfiltered — the caller always sees the full set)
+              - 'orphan_chunk_count': total chunks under those paths
+              - 'deleted_paths': paths actually deleted (honors `match`)
+              - 'deleted_chunk_count': 0 when dry_run, else chunks removed
+              - 'scanned_paths': total distinct file_paths checked
+              - 'match_filter': the filter used (or None)
+        """
+        result: Dict = {
+            "orphan_paths": [],
+            "orphan_chunk_count": 0,
+            "deleted_paths": [],
+            "deleted_chunk_count": 0,
+            "scanned_paths": 0,
+            "match_filter": match,
+        }
+
+        if self.table is None:
+            logger.warning("vacuum_orphans called before table initialized")
+            return result
+
+        try:
+            # Pull every file_path in the KB. LanceDB doesn't expose a DISTINCT,
+            # so we load the column and dedupe in memory. For a 150-doc KB this
+            # is fine (~150KB of strings); at 100k+ docs consider paginating.
+            all_rows = (
+                self.table.search()
+                .select(["file_path"])
+                .limit(1_000_000)
+                .to_list()
+            )
+            unique_paths = sorted({row["file_path"] for row in all_rows})
+            result["scanned_paths"] = len(unique_paths)
+
+            orphan_paths: List[str] = []
+            orphan_chunk_count = 0
+            for path in unique_paths:
+                # Path.exists() is symlink-following; orphan detection is
+                # about "can we still reach the file" not "is it canonical".
+                if not Path(path).exists():
+                    chunk_count = self.table.count_rows(
+                        f"file_path = '{_sanitize_sql_value(path)}'"
+                    )
+                    orphan_paths.append(path)
+                    orphan_chunk_count += chunk_count
+
+            result["orphan_paths"] = orphan_paths
+            result["orphan_chunk_count"] = orphan_chunk_count
+
+            if not orphan_paths:
+                logger.info("vacuum: no orphan chunks found")
+                return result
+
+            logger.info(
+                f"vacuum: found {len(orphan_paths)} orphan paths "
+                f"totalling {orphan_chunk_count} chunks (dry_run={dry_run})"
+            )
+
+            if dry_run:
+                return result
+
+            # Apply match filter BEFORE acquiring write lock — we want to
+            # know exactly what's being deleted and log it before touching
+            # the table. Safety rule: never delete without explicit intent.
+            if match is not None:
+                targeted = [p for p in orphan_paths if match in p]
+                logger.info(
+                    f"vacuum: --match={match!r} narrowed "
+                    f"{len(orphan_paths)} orphans → {len(targeted)} targeted"
+                )
+            else:
+                targeted = list(orphan_paths)
+
+            if not targeted:
+                logger.info("vacuum: match filter selected zero paths; nothing to delete")
+                return result
+
+            # Delete. Write lock wraps the whole sweep so concurrent
+            # index_document calls don't race with our deletes.
+            deleted_paths: List[str] = []
+            deleted_count = 0
+            with self._write_lock():
+                for path in targeted:
+                    safe = _sanitize_sql_value(path)
+                    count = self.table.count_rows(f"file_path = '{safe}'")
+                    self.table.delete(f"file_path = '{safe}'")
+                    deleted_paths.append(path)
+                    deleted_count += count
+                    logger.info(f"vacuum: deleted {count} chunks for {path}")
+            result["deleted_paths"] = deleted_paths
+            result["deleted_chunk_count"] = deleted_count
+            return result
+
+        except TimeoutError as e:
+            logger.error(f"vacuum: write lock timeout: {e}")
+            return result
+        except Exception as e:
+            logger.error(f"vacuum failed: {e}")
+            return result
 
     def get_stats(self) -> Dict:
         """Get indexer statistics"""

@@ -5,6 +5,17 @@ All notable changes to the 0K-RAG Plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-04-20
+
+### Added
+- **Hash-first deduplication in `index_document()`** — before falling back to a path-based check, the indexer queries LanceDB for rows with a matching `content_hash`. This catches moves and renames: the same content at a new path now updates the `file_path` pointer on the existing chunks instead of re-embedding and leaving orphans at the old path. Re-indexing an unchanged file is still a no-op. Re-embedding only happens when content actually changed.
+- **`vacuum_orphans()` indexer method** — inspects every distinct `file_path` in the KB, reports which ones are no longer on disk, and (when `dry_run=False`) deletes the chunks for those paths. Supports a `match` substring filter so deletions can be scoped to a reviewed category rather than sweeping every orphan.
+- **`0k-vacuum` CLI command** — user-facing entry point for the orphan sweep. Defaults to dry-run. Flags: `--delete`, `--dry-run`, `--match PATTERN`, `--json`, `--db-path`, `--verbose`. Human-readable report lists every orphan path with a ✓ next to the ones that were actually deleted.
+- **6 unit tests** (`tests/test_vacuum_orphans.py`) — clean KB, missing-file detection, delete-without-match, `--match` preserves non-matching orphans, match-nothing noop, empty-table safety.
+
+### Safety Policy
+- Orphan detection is a **signal**, not **permission to delete**. A `file_path` that no longer exists on disk may represent content that was moved off-tree, renamed, or deliberately dereferenced from its source while the knowledge is still wanted in retrieval. `0k-vacuum` defaults to dry-run for this reason; prefer `--match PATTERN` for every real deletion so a review-before-delete discipline is built into the tool.
+
 ## [1.3.2] - 2026-04-14
 
 ### Changed

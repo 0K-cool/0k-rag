@@ -26,6 +26,8 @@ A production-ready Retrieval-Augmented Generation (RAG) system designed for **10
 - ✅ **Auto-indexing** - Git post-commit hooks (optional, manual setup)
 - ✅ **Native citations** - Anthropic citations API support
 - ✅ **Progress notifications** - Console + webhook (Discord/Slack/Teams)
+- ✅ **Hash-first deduplication** - detects moves/renames and retargets existing chunks instead of re-embedding
+- ✅ **`0k-vacuum` orphan pruning** - identifies and (with approval) removes chunks whose source file is gone
 
 ---
 

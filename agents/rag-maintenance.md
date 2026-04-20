@@ -93,6 +93,28 @@ index_document(file_path="document.md", project="ProjectName")
 # Location configured in .0k-rag.yml under database.backup_dir
 ```
 
+### Orphan Vacuum (`0k-vacuum`)
+```bash
+# Dry-run — report chunks whose source file is gone (NEVER deletes by default)
+0k-vacuum
+
+# Delete ALL detected orphans (requires explicit approval — prefer --match)
+0k-vacuum --delete
+
+# SAFE DEFAULT: delete only orphans matching a substring
+0k-vacuum --delete --match proximity_scan
+
+# Machine-readable report
+0k-vacuum --json
+```
+
+**Safety:** `vacuum_orphans()` detects that a source file no longer exists on
+disk, but that is NOT permission to delete the chunks. Source files and RAG
+chunks are distinct surfaces — knowledge remains valuable even when the
+authoring file has been moved or reorganized. Always dry-run first, review
+the orphan list with the owner, and prefer `--match PATTERN` to scope
+deletions to a reviewed category.
+
 ---
 
 ## System Architecture
