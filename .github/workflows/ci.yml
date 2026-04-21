@@ -1,0 +1,188 @@
+# Public-repo CI template for ZerØK Labs open-source projects.
+#
+# Target repos: 0K-cool/{athena,0k-talon,0k-rag,mnemosyne,FORT,...} — all
+# PUBLIC. For private repos (vex, versant-docs, …) use the Claude CI
+# chain instead.
+#
+# To install: copy this file to `.github/workflows/ci.yml` in the target
+# repo and commit. Adjust the `python-version` / bun install invocation
+# if the repo uses pinned versions.
+#
+# Layers:
+#   - Semgrep (community rules — free, no login required)
+#   - Auto-detected test runner (bun / pytest)
+#   - Explicit fail when neither runner fires (no silent green)
+#
+# Not in this template (provided by GitHub Apps on the 0K-cool org):
+#   - CodeRabbit auto-review   → install: https://github.com/apps/coderabbitai
+#   - GitGuardian secret scan  → configured at org level
+#
+# Supply chain: all GitHub Actions pinned to commit SHAs (not mutable
+# tags) to prevent tj-actions-style compromise. When bumping, verify
+# the new SHA with: `gh api repos/<owner>/<repo>/git/ref/tags/<tag>`.
+# Consider adding Dependabot (`.github/dependabot.yml` with
+# package-ecosystem: github-actions) in each target repo.
+#
+# workflow_dispatch + secrets footgun: if you ever add repository
+# secrets (e.g., CODECOV_TOKEN, NPM_TOKEN) to this workflow, gate every
+# secret-reading step with `if: github.ref == 'refs/heads/main'`.
+# workflow_dispatch can be triggered on ANY ref, making it a PPE
+# (pwn-request-equivalent) amplifier if secrets are present. This
+# template ships with NO secrets — safe as-is. Re-audit before adding.
+#
+# Decision record: see `.claude/skills/zero-drift/skill.md` Step 5c.0.
+
+name: CI
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Only cancel in-progress runs for PR events. Cancelling on push-to-main
+  # would let a force-push storm DoS the default branch CI lane during
+  # release verification.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  static-analysis:
+    name: Semgrep
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          persist-credentials: false
+      - uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d  # v1
+        with:
+          config: |
+            p/default
+            p/security-audit
+            p/secrets
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          persist-credentials: false
+
+      # TypeScript / Bun branch — fires only if lockfile present
+      # (frozen-lockfile would hard-fail if gated on package.json alone).
+      - name: Setup Bun
+        id: bun-setup
+        if: hashFiles('bun.lock', 'bun.lockb') != ''
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2
+        with:
+          # Pin tool version, not just action SHA. Pre-1.1.x bun had
+          # edge cases where `trustedDependencies` in package.json could
+          # override `--ignore-scripts`, enabling install-time RCE from
+          # fork-controlled lockfiles. Pinning to a post-1.1.x version
+          # closes that vector.
+          bun-version: '1.2.8'
+          cache: true
+      - name: bun install + test
+        if: steps.bun-setup.conclusion == 'success'
+        run: |
+          set -eo pipefail
+          # --ignore-scripts prevents dep postinstall hooks from executing
+          # arbitrary code on the runner (frozen-lockfile pins the version
+          # graph, not the execution model). Safe default here; re-enable
+          # selectively if a specific dep legitimately requires postinstall.
+          bun install --frozen-lockfile --ignore-scripts
+          # `bun test` exits 0 when no test files match. Fail-fast here
+          # instead of showing silent-green CI on a repo with a lockfile
+          # but no actual tests committed yet.
+          # `-name node_modules` prunes AT ANY DEPTH (monorepos with
+          # packages/*/node_modules would otherwise surface vendored
+          # test files as false positives).
+          if ! find . -name node_modules -prune -o \
+               \( -name '*.test.ts' -o -name '*.test.tsx' \
+                  -o -name '*.test.js' -o -name '*.test.jsx' \
+                  -o -name '*.spec.ts' -o -name '*.spec.tsx' \
+                  -o -name '*.spec.js' -o -name '*.spec.jsx' \
+               \) -print -quit | grep -q .; then
+            echo "::error::No test files matched *.test.* / *.spec.* under the repo." >&2
+            echo "::error::Add at least one test file, or explicitly document a no-tests policy in the target repo's CI." >&2
+            exit 1
+          fi
+          bun test
+
+      # Python / pytest branch — fires if any common Python project descriptor present
+      # (pyproject.toml / requirements.txt / setup.cfg / setup.py)
+      - name: Setup Python
+        id: py-setup
+        if: hashFiles('pyproject.toml', 'requirements.txt', 'setup.cfg', 'setup.py') != ''
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: '3.12'
+          # cache: 'pip' hashes requirements.txt when present. Repos with
+          # only pyproject.toml (no lockfile) will hash pyproject itself
+          # — cache invalidates on any metadata change, not just dep
+          # changes. Acceptable for a template; for stability consider
+          # adding `pip-compile` output (requirements.lock) in the
+          # target repo.
+          cache: 'pip'
+      - name: pip install + pytest
+        if: steps.py-setup.conclusion == 'success'
+        run: |
+          set -eo pipefail
+          # Pin pytest FIRST — a malicious pyproject.toml from a fork PR
+          # could declare pytest at a downgraded/patched version and
+          # override the test runner before tests execute. Installing
+          # pytest before the project ensures the test runner is known.
+          pip install pytest
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+          # SUPPLY CHAIN WARNING: `pip install .` executes the PR's PEP 517
+          # build backend + setup.py — arbitrary code from the fork.
+          # Non-editable does NOT avoid this (both editable and standard
+          # installs run the build backend). Acceptable here only because:
+          #   - no secrets in the workflow env
+          #   - `pull_request` trigger (not `pull_request_target`)
+          #   - `contents: read` token cannot write to base repo
+          #   - `persist-credentials: false` on checkout means no token
+          #     written to .git/config for the build backend to read
+          # Additional hardening worth considering: add `--no-deps` to
+          # prevent the build backend from pulling (and executing build
+          # hooks for) additional transitive deps. Only safe if the
+          # requirements.txt install above covered all test-time deps.
+          # Do NOT copy this pattern to workflows with write permissions
+          # or secrets. Alternative for repos that don't need install:
+          # use `PYTHONPATH=src pytest -v` to skip installation entirely.
+          if [ -f pyproject.toml ] || [ -f setup.py ] || [ -f setup.cfg ]; then
+            pip install .
+          fi
+          pytest -v
+
+      # Explicit fail-if-neither-fired guard — prevents silent green
+      # when a repo adds code in a language this template doesn't
+      # recognize yet (go, rust, ruby, etc.). Force a template update
+      # rather than shipping invisibly untested code.
+      # Checking `== 'skipped'` (not `!= 'success'`): we only want this
+      # guard to fire when NEITHER setup step even attempted to run
+      # (meaning no recognized language). If a setup step ran but
+      # FAILED (network, toolchain error), that step's own failure
+      # already surfaces — we shouldn't mask it with a misleading
+      # "no recognized runner" message.
+      - name: Fail if no runner fired
+        if: steps.bun-setup.conclusion == 'skipped' && steps.py-setup.conclusion == 'skipped'
+        run: |
+          set -eo pipefail
+          echo "::error::No recognized test runner found." >&2
+          echo "::error::Expected one of: bun.lock, bun.lockb, pyproject.toml, requirements.txt, setup.cfg, setup.py." >&2
+          echo "::error::Update this template in PAI (`.claude/templates/workflows/public-repo-ci.yml`) to support this repo's runner (go, rust, ruby, etc.)." >&2
+          exit 1
