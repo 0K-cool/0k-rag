@@ -1,0 +1,29 @@
+# Dependabot keeps SHA-pinned GitHub Actions current AND surfaces Python
+# dependency updates. Without this, SHA pins are security theater: they
+# prevent drift but never receive security patches either.
+#
+# Scope:
+#   - GitHub Actions in `.github/workflows/*.yml`
+#   - Python deps in `requirements.txt` (root)
+
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"

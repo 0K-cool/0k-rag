@@ -58,10 +58,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           persist-credentials: false
-      - uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d  # v1
+      - uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d  # v1 (upstream only publishes v1 / v1-debug — no semver)
         with:
           config: |
             p/default
@@ -75,7 +75,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           persist-credentials: false
 
@@ -84,13 +84,18 @@ jobs:
       - name: Setup Bun
         id: bun-setup
         if: hashFiles('bun.lock', 'bun.lockb') != ''
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2.2.0
         with:
           # Pin tool version, not just action SHA. Pre-1.1.x bun had
           # edge cases where `trustedDependencies` in package.json could
           # override `--ignore-scripts`, enabling install-time RCE from
           # fork-controlled lockfiles. Pinning to a post-1.1.x version
           # closes that vector.
+          #
+          # Bump manually — Dependabot's `package-ecosystem: github-actions`
+          # updates action SHAs in `uses:` but NOT `with:` parameter
+          # values. The bun version here will drift silently unless
+          # bumped by hand alongside the setup-bun action bump.
           bun-version: '1.2.8'
           cache: true
       - name: bun install + test
@@ -125,7 +130,7 @@ jobs:
       - name: Setup Python
         id: py-setup
         if: hashFiles('pyproject.toml', 'requirements.txt', 'setup.cfg', 'setup.py') != ''
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: '3.12'
           # cache: 'pip' hashes requirements.txt when present. Repos with
@@ -143,7 +148,11 @@ jobs:
           # could declare pytest at a downgraded/patched version and
           # override the test runner before tests execute. Installing
           # pytest before the project ensures the test runner is known.
-          pip install pytest
+          # The `>=7.4.0` floor closes the remaining gap: `pip install
+          # -r requirements.txt` below cannot silently downgrade pytest
+          # to an older, potentially vulnerable release (pre-7.4 had
+          # CVE-class issues around tmp_path_factory permissions).
+          pip install "pytest>=7.4.0"
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           fi
@@ -156,15 +165,54 @@ jobs:
           #   - `contents: read` token cannot write to base repo
           #   - `persist-credentials: false` on checkout means no token
           #     written to .git/config for the build backend to read
-          # Additional hardening worth considering: add `--no-deps` to
-          # prevent the build backend from pulling (and executing build
-          # hooks for) additional transitive deps. Only safe if the
-          # requirements.txt install above covered all test-time deps.
+          # Hardening conditionally applied: `--no-deps` blocks the build
+          # backend from pulling (and executing build hooks for) additional
+          # transitive deps at install time. The flag is only safe when
+          # test-time deps are already installed out-of-band — so we gate
+          # it on `requirements.txt` presence. A pyproject-only repo with
+          # declared dependencies would get cryptic import errors at
+          # pytest time if we used `--no-deps` unconditionally; in that
+          # case we fall back to regular `pip install .` (still
+          # protected by the SUPPLY CHAIN WARNING context above — no
+          # secrets, no pull_request_target, read-only token) and rely
+          # on pyproject metadata to declare the dep graph.
+          # If a repo wants the hardening, the path is: generate a
+          # pinned `requirements.txt` (e.g. `pip-compile`) and commit it.
           # Do NOT copy this pattern to workflows with write permissions
           # or secrets. Alternative for repos that don't need install:
           # use `PYTHONPATH=src pytest -v` to skip installation entirely.
           if [ -f pyproject.toml ] || [ -f setup.py ] || [ -f setup.cfg ]; then
-            pip install .
+            if [ -f requirements.txt ]; then
+              pip install . --no-deps
+            else
+              pip install .
+            fi
+          fi
+          # Pre-flight guard mirroring the bun branch above. `pytest`
+          # exits 5 when no tests are collected — `set -e` catches it,
+          # but the resulting error is a cryptic pytest exit code rather
+          # than a template-level configuration message. Surface an
+          # explicit `::error::` so maintainers see the missing-tests
+          # case the same way in both Python and TS branches.
+          # `-name node_modules` also pruned so hybrid Python+TS repos
+          # don't surface vendored JS test fixtures.
+          # Note: `-quit` is a GNU-find extension. This currently runs
+          # on `ubuntu-24.04` (which ships GNU find), but adopters
+          # targeting `macos-*` runners would need to swap the pipeline
+          # to `find ... -print 2>/dev/null | head -n 1 | grep -q .`
+          # since BSD find lacks `-quit`.
+          # `tests.py` added to the match list for Django-style suites
+          # where all tests live in a single top-level file. `test*.py`
+          # is deliberately NOT used — it would match unrelated files
+          # like `testutils.py` in some older projects.
+          if ! find . \( -name .venv -o -name venv -o -name .tox \
+                         -o -name node_modules \) -prune -o \
+               \( -name 'test_*.py' -o -name '*_test.py' \
+                  -o -name 'tests.py' \) \
+               -print -quit | grep -q .; then
+            echo "::error::No Python test files matched (test_*.py / *_test.py / tests.py) under the repo." >&2
+            echo "::error::Add at least one test file, or explicitly document a no-tests policy in the target repo's CI." >&2
+            exit 1
           fi
           pytest -v
 
