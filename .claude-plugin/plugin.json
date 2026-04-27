@@ -1,6 +1,6 @@
 {
   "name": "0k-rag",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "100% local RAG system - Python library + MCP server + CLI tools + slash commands",
   "author": "Kelvin Lomboy",
   "repository": "https://github.com/0K-cool/0k-rag",

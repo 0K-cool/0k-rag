@@ -26,7 +26,7 @@ When the user requests to search for information in the knowledge base:
 
 Use the MCP resource:
 ```
-0k-rag://search/{query}
+ok-rag://search/{query}
 ```
 
 This resource automatically:

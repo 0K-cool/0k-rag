@@ -130,7 +130,7 @@ deletions to a reviewed category.
 - **Config:** `.mcp.json` in project root
 - **Auto-loads:** On Claude Code startup
 - **Tools:** `index_document`, `get_kb_stats`
-- **Resources:** `0k-rag://search/{query}`
+- **Resources:** `ok-rag://search/{query}`
 
 ### Configuration File (.0k-rag.yml)
 ```yaml

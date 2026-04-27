@@ -5,6 +5,11 @@ All notable changes to the 0K-RAG Plugin will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-04-27
+
+### Fixed
+- **MCP server failed to start with `pydantic_core.ValidationError: url_parsing`** — `@mcp.resource("0k-rag://help")` and `@mcp.resource("0k-rag://search/{query}")` decorators raised on import because Pydantic 2.13's `AnyUrl` validator rejects URI schemes that start with a digit (RFC 3986 requires schemes start with a letter). Renamed the URI scheme `0k-rag://` → `ok-rag://` across the MCP server and all docs. Affects every Claude Code session that loaded the plugin since the v1.3.x branding refactor (commit `aedb084`, 2026-04-15) — the server crashed on every startup, MCP tools never registered, RAG retrieval silently fell back to no-op. Plugin manifest (`.claude-plugin/plugin.json`) bumped to 1.3.2; library version (`pyproject.toml`) unchanged.
+
 ## [1.5.1] - 2026-04-20
 
 ### Fixed

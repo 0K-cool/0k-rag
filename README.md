@@ -150,7 +150,7 @@ After completing these steps, you have:
 
 **MCP Server:**
 - Automatic context injection in Claude Code conversations
-- Use `0k-rag://search/{query}` resource or ask questions naturally
+- Use `ok-rag://search/{query}` resource or ask questions naturally
 - Tools: `search_kb`, `index_document`, `get_kb_stats`
 
 **Python Library:**
@@ -328,15 +328,15 @@ rebuild_index()
 
 ```
 # Help resource (onboarding for AI agents)
-0k-rag://help
+ok-rag://help
 
 # Search resource (alternative to search_kb tool)
-0k-rag://search/{query}
+ok-rag://search/{query}
 
-# Example: 0k-rag://search/git%20safety%20protocols
+# Example: ok-rag://search/git%20safety%20protocols
 ```
 
-**Note:** The `search_kb` tool is preferred over the `0k-rag://search` resource because MCP tools are always discoverable by AI agents, while templated resources may not be enumerable.
+**Note:** The `search_kb` tool is preferred over the `ok-rag://search` resource because MCP tools are always discoverable by AI agents, while templated resources may not be enumerable.
 
 ---
 
@@ -831,7 +831,7 @@ See [PLUGIN-STATUS.md](PLUGIN-STATUS.md) for detailed version history and roadma
 **Current:** v1.3.1 (February 2, 2026) - AI agent discoverability + progress notifications
 
 **Recent Releases:**
-- v1.3.1 - Added search_kb tool, 0k-rag://help resource, progress notification system
+- v1.3.1 - Added search_kb tool, ok-rag://help resource, progress notification system
 - v1.2.0 - Added `/rag-search` and `/rag-index` slash commands
 - v1.1.0 - Clarified plugin capabilities, fixed misleading documentation
 - v1.0.1 - CLI portability fixes, privacy improvements
@@ -845,7 +845,7 @@ See [PLUGIN-STATUS.md](PLUGIN-STATUS.md) for complete roadmap and planned featur
 
 **Completed in v1.3.1:**
 - ✅ Progress notification system (Console + Webhook)
-- ✅ AI agent discoverability (search_kb tool, 0k-rag://help)
+- ✅ AI agent discoverability (search_kb tool, ok-rag://help)
 - ✅ Enhanced get_kb_stats with usage hints
 
 **Long-term (v2.0.0+):**

@@ -36,7 +36,7 @@
 
 **MCP Server:**
 - ✅ `0k-rag-knowledge-base` MCP server
-- ✅ Resource: `0k-rag://search/{query}` (automatic context injection)
+- ✅ Resource: `ok-rag://search/{query}` (automatic context injection)
 - ✅ Tool: `index_document(file_path, project, sanitize)`
 - ✅ Tool: `get_kb_stats()`
 - ✅ Configuration-driven (`.0k-rag.yml`)

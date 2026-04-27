@@ -9,8 +9,8 @@ This is a configurable version that reads settings from .0k-rag.yml
 in the project directory, making it portable across multiple projects.
 
 Resources:
-- 0k-rag://help - Get usage instructions and available capabilities
-- 0k-rag://search/{query} - Search knowledge base and return top results
+- ok-rag://help - Get usage instructions and available capabilities
+- ok-rag://search/{query} - Search knowledge base and return top results
 
 Tools:
 - search_kb - Search the knowledge base (RECOMMENDED - always discoverable)
@@ -215,7 +215,7 @@ def get_indexer() -> KnowledgeBaseIndexer:
 # MCP RESOURCES
 # =============================================================================
 
-@mcp.resource("0k-rag://help")
+@mcp.resource("ok-rag://help")
 def get_help() -> str:
     """
     Get usage instructions for the 0K-RAG Knowledge Base.
@@ -235,11 +235,11 @@ SEARCH (use the tool - always discoverable):
     search_kb("MITRE ATT&CK persistence techniques")
 
 ALTERNATIVE (resource - may not be discoverable):
-  0k-rag://search/{{query}}
+  ok-rag://search/{{query}}
 
   Examples:
-    0k-rag://search/authentication bypass
-    0k-rag://search/git safety check
+    ok-rag://search/authentication bypass
+    ok-rag://search/git safety check
 
 INDEXING:
   index_document(file_path, project=None, enable_sanitization=None)
@@ -266,7 +266,7 @@ Default top_k: {DEFAULT_TOP_K}
 """
 
 
-@mcp.resource("0k-rag://search/{query}")
+@mcp.resource("ok-rag://search/{query}")
 def search_knowledge_base(query: str) -> str:
     """
     Search the 0K-RAG knowledge base and return results with native citations.
@@ -636,7 +636,7 @@ def get_kb_stats() -> Dict[str, Any]:
             'search_kb("incident response workflow", top_k=3)',
             'search_kb("security best practices")'
         ]
-        stats["help_resource"] = "0k-rag://help"
+        stats["help_resource"] = "ok-rag://help"
 
         logger.info(f"Stats retrieved: {stats['total_chunks']} total chunks, search_healthy={search_healthy}, fts_healthy={fts_actually_healthy}")
         return stats
