@@ -2,7 +2,19 @@ name: Claude Code Security Review
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    # Cost: dropped `synchronize` and `reopened` to stop per-push fanout.
+    # Re-trigger via `@claude security review` in PR comments when needed.
+    types: [opened, ready_for_review]
+    paths-ignore:
+      - '**.md'
+      - 'CHANGELOG.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+
+concurrency:
+  group: claude-security-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

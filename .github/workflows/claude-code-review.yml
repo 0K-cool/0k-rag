@@ -2,7 +2,19 @@ name: Claude Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    # Cost: dropped `synchronize` to stop firing on every push.
+    # Re-trigger via `@claude review again` in PR comments when needed.
+    types: [opened, ready_for_review]
+    paths-ignore:
+      - '**.md'
+      - 'CHANGELOG.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+
+concurrency:
+  group: claude-review-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   claude-review:
@@ -39,4 +51,12 @@ jobs:
 
             Use `gh pr comment` with your Bash tool to leave your review.
 
-          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
+          # --bare skips CLAUDE.md auto-load (~30-50% per-call savings on Sonnet);
+          # 0k-rag's CLAUDE.md context isn't critical for code review like PAI's is.
+          # --max-budget-usd caps per-call spend at $1; --max-turns 10 prevents runaway loops.
+          claude_args: |
+            --bare
+            --model claude-sonnet-4-6
+            --max-turns 10
+            --max-budget-usd 1.00
+            --allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"
