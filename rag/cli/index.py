@@ -93,6 +93,9 @@ Examples:
         db_path = config['database']['path']
         project_name = args.project or config['project']['name']
         enable_sanitization = not args.no_sanitize and config['indexing'].get('enable_sanitization', True)
+        # Path substrings where NER sanitization is skipped (regex still runs).
+        # Use for curated research content where proper nouns are the value.
+        sanitize_ner_skip_paths = config['indexing'].get('sanitize_ner_skip_paths', []) or []
 
         # Import RAG modules
         from rag.indexing.indexer import KnowledgeBaseIndexer
@@ -106,7 +109,11 @@ Examples:
 
         # Initialize document loader and sanitizer
         loader = DocumentLoader()
-        sanitizer = Sanitizer() if enable_sanitization else None
+        sanitizer = (
+            Sanitizer(skip_ner_paths=sanitize_ner_skip_paths)
+            if enable_sanitization
+            else None
+        )
 
         # Determine files to index
         files_to_index = []
@@ -149,9 +156,13 @@ Examples:
                     print(f"   Failed to load file", file=sys.stderr)
                     continue
 
-                # Apply sanitization if enabled
+                # Apply sanitization if enabled. Pass file_path so NER-skip
+                # routing (config: sanitize_ner_skip_paths) can match trusted
+                # research paths without redacting their proper nouns.
                 if sanitizer:
-                    sanitization_result = sanitizer.sanitize(document.content)
+                    sanitization_result = sanitizer.sanitize(
+                        document.content, file_path=str(file_path)
+                    )
                     document.content = sanitization_result.sanitized_text
 
                 # Index document with progress notifications

@@ -89,6 +89,10 @@ ENABLE_RERANKING = config['retrieval'].get('enable_reranking', True)
 RERANKER_MODEL = config['retrieval'].get('reranker_model', 'BAAI/bge-reranker-large')
 DEFAULT_TOP_K = config['retrieval'].get('default_top_k', 5)
 ENABLE_SANITIZATION = config['indexing'].get('enable_sanitization', True)
+# Path substrings where NER sanitization is skipped (regex still runs).
+# Curated research content (e.g. output/research/) loses retrieval quality
+# when spaCy NER over-redacts common proper nouns like "Personal" or "Claude".
+SANITIZE_NER_SKIP_PATHS = config['indexing'].get('sanitize_ner_skip_paths', []) or []
 LOG_LEVEL = config.get('logging', {}).get('level', 'INFO')
 LOG_FILE = config.get('logging', {}).get('file', '.claude/logs/rag.log')
 
@@ -543,7 +547,10 @@ def index_document(
 
         # Sanitize if enabled
         if enable_sanitization:
-            sanitizer = Sanitizer(enable_ner=True)
+            sanitizer = Sanitizer(
+                enable_ner=True,
+                skip_ner_paths=SANITIZE_NER_SKIP_PATHS,
+            )
             result = sanitizer.sanitize(doc.content, str(path))
             doc.content = result.sanitized_text
 

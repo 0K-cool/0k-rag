@@ -81,13 +81,24 @@ class Sanitizer:
     _ALLOWLIST_DEFAULT_PATH = Path.home() / ".0k-rag" / "config" / "ner-allowlist.json"
     _ALLOWLIST_CACHE_TTL = 60  # seconds
 
-    def __init__(self, enable_ner: bool = True, allowlist_path: Optional[str] = None):
+    def __init__(
+        self,
+        enable_ner: bool = True,
+        allowlist_path: Optional[str] = None,
+        skip_ner_paths: Optional[List[str]] = None,
+    ):
         """
         Initialize sanitizer
 
         Args:
             enable_ner: Enable Named Entity Recognition (spaCy)
             allowlist_path: Path to NER allowlist JSON (default: ~/.0k-rag/config/ner-allowlist.json)
+            skip_ner_paths: Path substrings (e.g. "output/research/") where NER
+                sanitization is skipped because the source is curated content
+                whose proper nouns ARE the value (research notes, vendor docs,
+                course material). Regex sanitization (emails, SSN, credit
+                cards, etc.) still runs — this only suppresses the NER layer's
+                over-eager PERSON/ORG/GPE redactions on trusted paths.
         """
         self.enable_ner = enable_ner
         self.nlp = None
@@ -95,6 +106,7 @@ class Sanitizer:
         self._allowlist_cache: Set[str] = set()
         self._allowlist_cache_lower: Set[str] = set()
         self._allowlist_loaded_at: float = 0
+        self._skip_ner_paths: List[str] = skip_ner_paths or []
 
         if enable_ner:
             try:
@@ -274,22 +286,35 @@ class Sanitizer:
             logger.error(f"NER sanitization failed: {e}")
             return text, []
 
+    def _path_skips_ner(self, file_path: str) -> bool:
+        """Check if file_path matches any configured NER-skip path substring."""
+        if not file_path or not self._skip_ner_paths:
+            return False
+        return any(skip in file_path for skip in self._skip_ner_paths)
+
     def sanitize(self, text: str, file_path: str = "") -> SanitizationResult:
         """
         Complete multi-layer sanitization
 
         Args:
             text: Text to sanitize
-            file_path: Source file path (for context)
+            file_path: Source file path (for context + NER-skip routing)
 
         Returns:
             SanitizationResult object
         """
-        # Layer 1: Regex
+        # Layer 1: Regex (always runs — catches real PII like emails, SSN, etc.)
         sanitized, regex_detected = self.sanitize_regex(text)
 
-        # Layer 2: NER
-        sanitized, ner_detected = self.sanitize_ner(sanitized)
+        # Layer 2: NER (skipped for trusted research paths to avoid over-redacting
+        # common proper nouns like "Personal", "Anthropic", "Claude" that the
+        # spaCy model misidentifies as PERSON/ORG/GPE entities. Regex still
+        # protects against actual PII even when NER is skipped.)
+        ner_detected: List[str] = []
+        if self._path_skips_ner(file_path):
+            logger.debug(f"NER sanitization skipped for trusted path: {file_path}")
+        else:
+            sanitized, ner_detected = self.sanitize_ner(sanitized)
 
         # Combine detections
         all_detected = regex_detected + ner_detected
