@@ -654,6 +654,32 @@ def get_kb_stats() -> Dict[str, Any]:
         return {"error": error_msg}
 
 
+def _index_one_file(loader, indexer, file_path, project_name):
+    """Load and index a single file.
+
+    Returns (chunk_count, failure_record_or_None). When the loader cannot
+    produce a Document (parse error, missing optional dependency, empty
+    file, unsupported extension), it returns None — callers must not
+    forward that to indexer.index_document, which would raise an opaque
+    AttributeError on the missing .file_path attribute.
+    """
+    doc = loader.load_file(str(file_path), project_name)
+    if doc is None:
+        return 0, {
+            "file": str(file_path.name),
+            "error": (
+                "load_file returned None (see logs for cause; common: "
+                "missing optional dependency like PyMuPDF for PDFs, "
+                "unsupported extension, or empty file)"
+            ),
+        }
+    try:
+        chunk_count = indexer.index_document(doc)
+        return chunk_count, None
+    except Exception as e:
+        return 0, {"file": str(file_path.name), "error": str(e)[:100]}
+
+
 @mcp.tool()
 def rebuild_index() -> str:
     """
@@ -762,15 +788,18 @@ def rebuild_index() -> str:
         failed_files = []
 
         for file_path in sorted(files_to_index):
-            try:
-                doc = loader.load_file(str(file_path), PROJECT_NAME)
-                chunk_count = indexer.index_document(doc)
-                total_chunks += chunk_count
-                indexed_files.append(str(file_path.name))
-                logger.info(f"rebuild_index: indexed {file_path.name} ({chunk_count} chunks)")
-            except Exception as e:
-                failed_files.append({"file": str(file_path.name), "error": str(e)[:100]})
-                logger.error(f"rebuild_index: failed to index {file_path.name}: {e}")
+            chunk_count, failure = _index_one_file(
+                loader, indexer, file_path, PROJECT_NAME
+            )
+            if failure is not None:
+                failed_files.append(failure)
+                logger.error(
+                    f"rebuild_index: failed to index {file_path.name}: {failure['error']}"
+                )
+                continue
+            total_chunks += chunk_count
+            indexed_files.append(str(file_path.name))
+            logger.info(f"rebuild_index: indexed {file_path.name} ({chunk_count} chunks)")
 
         # Step 5: Invalidate pipeline so next search opens fresh table
         _pipeline = None
