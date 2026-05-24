@@ -663,17 +663,17 @@ def _index_one_file(loader, indexer, file_path, project_name):
     forward that to indexer.index_document, which would raise an opaque
     AttributeError on the missing .file_path attribute.
     """
-    doc = loader.load_file(str(file_path), project_name)
-    if doc is None:
-        return 0, {
-            "file": str(file_path.name),
-            "error": (
-                "load_file returned None (see logs for cause; common: "
-                "missing optional dependency like PyMuPDF for PDFs, "
-                "unsupported extension, or empty file)"
-            ),
-        }
     try:
+        doc = loader.load_file(str(file_path), project_name)
+        if doc is None:
+            return 0, {
+                "file": str(file_path.name),
+                "error": (
+                    "load_file returned None (see logs for cause; common: "
+                    "missing optional dependency like PyMuPDF for PDFs, "
+                    "unsupported extension, or empty file)"
+                ),
+            }
         chunk_count = indexer.index_document(doc)
         return chunk_count, None
     except Exception as e:

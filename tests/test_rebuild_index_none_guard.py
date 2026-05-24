@@ -64,6 +64,21 @@ class TestIndexOneFileNoneGuard(unittest.TestCase):
         self.assertIsNone(failure)
         indexer.index_document.assert_called_once_with(doc)
 
+    def test_returns_failure_record_when_loader_raises(self):
+        _index_one_file = _load_helper()
+        loader = MagicMock()
+        loader.load_file.side_effect = RuntimeError("loader exploded")
+        indexer = MagicMock()
+        file_path = Path("/fake/explodes.pdf")
+
+        chunks, failure = _index_one_file(loader, indexer, file_path, "PAI")
+
+        self.assertEqual(chunks, 0)
+        self.assertIsNotNone(failure)
+        self.assertEqual(failure["file"], "explodes.pdf")
+        self.assertIn("loader exploded", failure["error"])
+        indexer.index_document.assert_not_called()
+
     def test_returns_failure_record_when_indexer_raises(self):
         _index_one_file = _load_helper()
         loader = MagicMock()
