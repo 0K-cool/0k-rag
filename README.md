@@ -22,7 +22,7 @@ A production-ready Retrieval-Augmented Generation (RAG) system designed for **10
 - ✅ **MCP server integration** - Automatic context injection into conversations
 - ✅ **Slash commands** - `/rag-search` and `/rag-index` for manual control
 - ✅ **Multi-project support** - Portable across projects via configuration
-- ✅ **PII sanitization** - Multi-layer sanitization (configurable)
+- ✅ **PII sanitization** - Multi-layer sanitization with per-path tiers (strict/standard/intel) — keep IOCs in curated intel while secrets and client data always redact
 - ✅ **Auto-indexing** - Git post-commit hooks (optional, manual setup)
 - ✅ **Native citations** - Anthropic citations API support
 - ✅ **Progress notifications** - Console + webhook (Discord/Slack/Teams)
@@ -187,6 +187,16 @@ indexing:
   context_model: llama3.1:8b
   embedding_model: nomic-embed-text:latest
   enable_sanitization: true
+  # Per-path sanitization tiers (optional; default is strict everywhere).
+  # Most-specific matching path wins. Secrets and client patterns ALWAYS redact
+  # on every tier — only the non-secret PII/IOC categories and NER are scoped.
+  #   strict   – redact everything + NER (default when unset)
+  #   standard – redact PII (email/phone) + secrets; keep IOCs; no NER
+  #   intel    – redact secrets only; keep IOCs + contact PII; no NER
+  sanitize_default_tier: standard
+  sanitize_path_tiers:
+    - {path: threat-intel/, tier: intel}   # keep IOCs + sender/recipient in CTI
+    - {path: client-work/, tier: strict}   # full redaction for client material
   auto_index_extensions:
     - .md
     - .pdf
