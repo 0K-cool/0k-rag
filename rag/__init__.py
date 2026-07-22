@@ -15,7 +15,17 @@ License: MIT
 Version: 1.0.0
 """
 
-__version__ = "1.0.0"
+# Single source of truth is pyproject.toml; read it at import so this can never
+# drift from the packaged version again (it was stuck at 1.0.0 for 5 releases).
+try:
+    from importlib.metadata import version as _pkg_version, PackageNotFoundError
+    try:
+        __version__ = _pkg_version("0k-rag")
+    except PackageNotFoundError:
+        __version__ = "0.0.0+unknown"
+except ImportError:  # pragma: no cover
+    __version__ = "0.0.0+unknown"
+
 __author__ = "Kelvin Lomboy"
 __license__ = "MIT"
 
