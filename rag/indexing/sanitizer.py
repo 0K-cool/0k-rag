@@ -77,6 +77,32 @@ class Sanitizer:
         "uaa": r'(?i)university\s+of\s+alaska\s+anchorage',
     }
 
+    # --- Sanitization tiers -------------------------------------------------
+    # A tier declares which regex categories to redact and whether NER runs.
+    # Real secrets and CLIENT_PATTERNS are NOT tier-configurable — they redact
+    # on every tier (enforced in sanitize_regex, not here), so no configuration
+    # can expose them.
+    #
+    #   strict   — redact everything + NER. The historical behavior and the
+    #              default when no tier is configured (fail-closed).
+    #   standard — redact PII (email/phone) + secrets + client; KEEP IOCs
+    #              (domain/ip/url/mac); skip NER. IOCs are intelligence, not PII.
+    #   intel    — redact secrets + client only; KEEP IOCs AND PII; skip NER.
+    #              For curated threat-intel/research where sender/recipient and
+    #              network indicators are the value.
+    _PII_CATEGORIES = frozenset({"email", "phone"})
+    _IOC_CATEGORIES = frozenset({"ipv4", "ipv6", "mac_address", "domain", "url"})
+    # Secret categories always redact regardless of tier; listed for clarity.
+    _SECRET_CATEGORIES = frozenset({"ssn", "credit_card", "aws_key", "azure_key", "api_key"})
+
+    # Per tier: the set of NON-secret regex categories to redact, and run_ner.
+    TIERS: Dict[str, Dict] = {
+        "strict":   {"redact": _PII_CATEGORIES | _IOC_CATEGORIES, "run_ner": True},
+        "standard": {"redact": _PII_CATEGORIES,                   "run_ner": False},
+        "intel":    {"redact": frozenset(),                       "run_ner": False},
+    }
+    _DEFAULT_TIER = "strict"
+
     # Allowlist config path and cache
     _ALLOWLIST_DEFAULT_PATH = Path.home() / ".0k-rag" / "config" / "ner-allowlist.json"
     _ALLOWLIST_CACHE_TTL = 60  # seconds
@@ -86,6 +112,8 @@ class Sanitizer:
         enable_ner: bool = True,
         allowlist_path: Optional[str] = None,
         skip_ner_paths: Optional[List[str]] = None,
+        default_tier: Optional[str] = None,
+        path_tiers: Optional[List[Dict[str, str]]] = None,
     ):
         """
         Initialize sanitizer
@@ -93,12 +121,20 @@ class Sanitizer:
         Args:
             enable_ner: Enable Named Entity Recognition (spaCy)
             allowlist_path: Path to NER allowlist JSON (default: ~/.0k-rag/config/ner-allowlist.json)
-            skip_ner_paths: Path substrings (e.g. "output/research/") where NER
-                sanitization is skipped because the source is curated content
-                whose proper nouns ARE the value (research notes, vendor docs,
-                course material). Regex sanitization (emails, SSN, credit
-                cards, etc.) still runs — this only suppresses the NER layer's
-                over-eager PERSON/ORG/GPE redactions on trusted paths.
+            skip_ner_paths: LEGACY. Path substrings where the NER layer is
+                skipped. Still honored, and OR'd with any tier that also skips
+                NER. Prefer `path_tiers` for new config.
+            default_tier: Sanitization tier applied when no path_tier matches.
+                One of TIERS ("strict"/"standard"/"intel"). None or an unknown
+                value falls back to "strict" (fail-closed) — an unreadable tier
+                config must never loosen redaction.
+            path_tiers: List of {"path": <substring>, "tier": <name>} rules.
+                The first rule whose `path` is a substring of the file path
+                wins; otherwise `default_tier` applies. Lets curated intel paths
+                keep IOCs while client-work paths force full strict redaction.
+
+        Secrets (ssn/credit_card/aws_key/azure_key/api_key) and CLIENT_PATTERNS
+        always redact on every tier; they are not tier-configurable.
         """
         self.enable_ner = enable_ner
         self.nlp = None
@@ -107,6 +143,21 @@ class Sanitizer:
         self._allowlist_cache_lower: Set[str] = set()
         self._allowlist_loaded_at: float = 0
         self._skip_ner_paths: List[str] = skip_ner_paths or []
+        self._default_tier: str = default_tier if default_tier in self.TIERS else self._DEFAULT_TIER
+        if default_tier is not None and default_tier not in self.TIERS:
+            logger.warning(
+                f"Unknown sanitizer default_tier {default_tier!r}; falling back to "
+                f"'{self._DEFAULT_TIER}' (fail-closed)."
+            )
+        # Normalize path_tiers; drop malformed rules loudly rather than silently.
+        self._path_tiers: List[Tuple[str, str]] = []
+        for rule in path_tiers or []:
+            path = rule.get("path")
+            tier = rule.get("tier")
+            if not path or tier not in self.TIERS:
+                logger.warning(f"Ignoring malformed sanitizer path_tier rule: {rule!r}")
+                continue
+            self._path_tiers.append((path, tier))
 
         if enable_ner:
             try:
@@ -208,12 +259,18 @@ class Sanitizer:
 
         return False
 
-    def sanitize_regex(self, text: str) -> Tuple[str, List[str]]:
+    def sanitize_regex(
+        self, text: str, redact_categories: Optional[Set[str]] = None
+    ) -> Tuple[str, List[str]]:
         """
-        Layer 1: Regex-based sanitization
+        Layer 1: Regex-based sanitization.
 
         Args:
             text: Text to sanitize
+            redact_categories: Which SANITIZATION_PATTERNS categories to redact
+                for non-secret classes (PII/IOC). None = redact all (strict).
+                Secret categories and CLIENT_PATTERNS ALWAYS redact regardless
+                of this set — a permissive tier can never expose them.
 
         Returns:
             (sanitized_text, detected_patterns)
@@ -221,20 +278,23 @@ class Sanitizer:
         sanitized = text
         detected = []
 
-        # Apply standard patterns
         for pattern_name, pattern in self.SANITIZATION_PATTERNS.items():
+            # Secrets always redact; other categories only if the tier says so.
+            if pattern_name not in self._SECRET_CATEGORIES:
+                if redact_categories is not None and pattern_name not in redact_categories:
+                    continue
             matches = re.findall(pattern, text)
             if matches:
                 detected.append(f"{pattern_name}: {len(matches)} occurrences")
                 replacement = f"[REDACTED_{pattern_name.upper()}]"
                 sanitized = re.sub(pattern, replacement, sanitized)
 
-        # Apply client-specific patterns
+        # Client-specific patterns ALWAYS redact, on every tier.
         for pattern_name, pattern in self.CLIENT_PATTERNS.items():
             matches = re.findall(pattern, text)
             if matches:
                 detected.append(f"{pattern_name}: {len(matches)} occurrences")
-                replacement = f"[REDACTED_CLIENT]"
+                replacement = "[REDACTED_CLIENT]"
                 sanitized = re.sub(pattern, replacement, sanitized)
 
         return sanitized, detected
@@ -292,6 +352,14 @@ class Sanitizer:
             return False
         return any(skip in file_path for skip in self._skip_ner_paths)
 
+    def _resolve_tier(self, file_path: str) -> str:
+        """First path_tier rule whose path is a substring of file_path wins;
+        otherwise the default tier. Fail-closed values were validated at init."""
+        for path, tier in self._path_tiers:
+            if path in file_path:
+                return tier
+        return self._default_tier
+
     def sanitize(self, text: str, file_path: str = "") -> SanitizationResult:
         """
         Complete multi-layer sanitization
@@ -303,16 +371,21 @@ class Sanitizer:
         Returns:
             SanitizationResult object
         """
-        # Layer 1: Regex (always runs — catches real PII like emails, SSN, etc.)
-        sanitized, regex_detected = self.sanitize_regex(text)
+        # Resolve the tier for this path. Secrets + CLIENT_PATTERNS redact on
+        # every tier; the tier only governs the non-secret PII/IOC categories
+        # and whether NER runs.
+        tier = self._resolve_tier(file_path)
+        tier_cfg = self.TIERS[tier]
+        redact_categories = set(tier_cfg["redact"]) | self._SECRET_CATEGORIES
 
-        # Layer 2: NER (skipped for trusted research paths to avoid over-redacting
-        # common proper nouns like "Personal", "Anthropic", "Claude" that the
-        # spaCy model misidentifies as PERSON/ORG/GPE entities. Regex still
-        # protects against actual PII even when NER is skipped.)
+        # Layer 1: Regex (secrets + client always; PII/IOC per tier).
+        sanitized, regex_detected = self.sanitize_regex(text, redact_categories)
+
+        # Layer 2: NER. Skipped when the tier says so, OR for a legacy
+        # skip_ner_paths match. Regex has already protected real PII/secrets.
         ner_detected: List[str] = []
-        if self._path_skips_ner(file_path):
-            logger.debug(f"NER sanitization skipped for trusted path: {file_path}")
+        if not tier_cfg["run_ner"] or self._path_skips_ner(file_path):
+            logger.debug(f"NER skipped (tier={tier}) for path: {file_path}")
         else:
             sanitized, ner_detected = self.sanitize_ner(sanitized)
 
