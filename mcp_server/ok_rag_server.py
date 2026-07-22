@@ -93,6 +93,8 @@ ENABLE_SANITIZATION = config['indexing'].get('enable_sanitization', True)
 # Curated research content (e.g. output/research/) loses retrieval quality
 # when spaCy NER over-redacts common proper nouns like "Personal" or "Claude".
 SANITIZE_NER_SKIP_PATHS = config['indexing'].get('sanitize_ner_skip_paths', []) or []
+# Per-path redaction tiers; absent -> {} -> Sanitizer keeps its strict default.
+SANITIZE_TIER_KWARGS = Sanitizer.tier_kwargs_from_config(config['indexing'])
 LOG_LEVEL = config.get('logging', {}).get('level', 'INFO')
 LOG_FILE = config.get('logging', {}).get('file', '.claude/logs/rag.log')
 
@@ -550,6 +552,7 @@ def index_document(
             sanitizer = Sanitizer(
                 enable_ner=True,
                 skip_ner_paths=SANITIZE_NER_SKIP_PATHS,
+                **SANITIZE_TIER_KWARGS,
             )
             result = sanitizer.sanitize(doc.content, str(path))
             doc.content = result.sanitized_text

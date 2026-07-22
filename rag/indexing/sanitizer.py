@@ -182,6 +182,26 @@ class Sanitizer:
         # Load allowlist on init
         self._load_allowlist()
 
+    @staticmethod
+    def tier_kwargs_from_config(indexing_config: Dict) -> Dict:
+        """Extract tier constructor kwargs from an `.0k-rag.yml` [indexing] dict.
+
+        Reads `sanitize_default_tier` (str) and `sanitize_path_tiers`
+        (list of {path, tier}). Returns only the keys that are present, so a
+        config with neither yields `{}` and the Sanitizer keeps its strict
+        default — a deployment that has not opted in is never loosened. Bad
+        values are not validated here; the Sanitizer constructor fails them
+        closed (unknown tier -> strict, malformed rule -> dropped).
+        """
+        kwargs: Dict = {}
+        default_tier = indexing_config.get("sanitize_default_tier")
+        if default_tier is not None:
+            kwargs["default_tier"] = default_tier
+        path_tiers = indexing_config.get("sanitize_path_tiers")
+        if path_tiers:
+            kwargs["path_tiers"] = path_tiers
+        return kwargs
+
     def _load_allowlist(self) -> None:
         """Load NER allowlist from JSON config with TTL cache"""
         now = time.time()
