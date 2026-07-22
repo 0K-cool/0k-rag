@@ -8,11 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.6.0] - 2026-07-22
 
 ### Added
-- **Per-path sanitization tiers** (`sanitize_default_tier` + `sanitize_path_tiers` under `indexing`). The sanitizer previously redacted every regex category and ran NER on all input, which destroys the value of curated content — IOCs (domains, IPs, URLs) and public person/org names are the intelligence in threat-intel/research material, not PII. Three opt-in tiers scope which non-secret categories redact and whether NER runs, resolved by **most-specific matching path** (not config order):
+- **Per-path sanitization tiers** (`sanitize_default_tier` + `sanitize_path_tiers` under `indexing`). By default the sanitizer redacted every regex category and ran NER (legacy `skip_ner_paths` aside), which destroys the value of curated content — IOCs (domains, IPs, URLs) and public person/org names are the intelligence in threat-intel/research material, not PII. Three opt-in tiers scope which non-secret categories redact and whether NER runs, resolved by **most-specific matching path** (not config order):
   - `strict` — redact everything + NER (the default when unconfigured; behaviour is byte-identical to prior releases, so upgrading without config changes nothing).
   - `standard` — redact PII (email/phone) + secrets + client patterns; keep IOCs; skip NER.
   - `intel` — redact secrets + client patterns only; keep IOCs and contact PII; skip NER.
-- Real secrets (ssn/credit_card/aws_key/azure_key/api_key) and client patterns **always redact on every tier**, enforced in code and not tier-configurable. Unknown tier names and malformed config fall back to `strict` (fail-closed).
+- Real secrets (ssn/credit_card/aws_key/azure_key/api_key) and client patterns **always redact on every tier**, enforced in code and not tier-configurable. An unknown `default_tier` falls back to `strict`; a malformed `path_tiers` rule is dropped (that path then resolves via `default_tier`), so keep `default_tier` at `strict` if you rely on path rules to tighten specific paths.
 - `rag.__version__` now reads from installed package metadata instead of a hardcoded literal (it had been stuck at `1.0.0` across five releases).
 
 ### Fixed

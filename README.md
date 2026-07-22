@@ -2,7 +2,7 @@
 
 > 100% local RAG system with hybrid search, contextual chunking, and BGE reranking
 
-**Version:** 1.3.1
+**Version:** 1.6.0
 **Author:** Kelvin Lomboy
 **License:** MIT
 
