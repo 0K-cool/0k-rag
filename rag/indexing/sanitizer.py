@@ -143,8 +143,12 @@ class Sanitizer:
         self._allowlist_cache_lower: Set[str] = set()
         self._allowlist_loaded_at: float = 0
         self._skip_ner_paths: List[str] = skip_ner_paths or []
-        self._default_tier: str = default_tier if default_tier in self.TIERS else self._DEFAULT_TIER
-        if default_tier is not None and default_tier not in self.TIERS:
+        # Type-check before membership tests: a YAML config can hand us a
+        # list/dict, and `x in self.TIERS` would raise on an unhashable value —
+        # defeating the fail-closed guarantee. Validate the type first.
+        valid_default = isinstance(default_tier, str) and default_tier in self.TIERS
+        self._default_tier: str = default_tier if valid_default else self._DEFAULT_TIER
+        if default_tier is not None and not valid_default:
             logger.warning(
                 f"Unknown sanitizer default_tier {default_tier!r}; falling back to "
                 f"'{self._DEFAULT_TIER}' (fail-closed)."
@@ -152,9 +156,12 @@ class Sanitizer:
         # Normalize path_tiers; drop malformed rules loudly rather than silently.
         self._path_tiers: List[Tuple[str, str]] = []
         for rule in path_tiers or []:
+            if not isinstance(rule, dict):
+                logger.warning(f"Ignoring malformed sanitizer path_tier rule: {rule!r}")
+                continue
             path = rule.get("path")
             tier = rule.get("tier")
-            if not path or tier not in self.TIERS:
+            if not isinstance(path, str) or not path or not isinstance(tier, str) or tier not in self.TIERS:
                 logger.warning(f"Ignoring malformed sanitizer path_tier rule: {rule!r}")
                 continue
             self._path_tiers.append((path, tier))
@@ -431,27 +438,40 @@ class Sanitizer:
 
         return False
 
-    def validate_sanitization(self, sanitized_text: str) -> Tuple[bool, List[str]]:
+    def validate_sanitization(
+        self, sanitized_text: str, tier: str = "strict"
+    ) -> Tuple[bool, List[str]]:
         """
-        Validate that no PII remains after sanitization
+        Validate that no tier-redacted PII remains after sanitization.
+
+        Must agree with the tier used to sanitize: `standard` deliberately keeps
+        IPv4, and `intel` keeps email/phone/IPv4, so validating those against a
+        strict expectation would reject legitimate tiered output. Secrets (SSN)
+        are always checked. Defaults to `strict` so existing callers are
+        unchanged.
 
         Args:
             sanitized_text: Sanitized text to validate
+            tier: The tier the text was sanitized with. Unknown → strict.
 
         Returns:
             (is_valid, list_of_failures)
         """
-        failures = []
+        redact = set(self.TIERS.get(tier, self.TIERS[self._DEFAULT_TIER])["redact"])
 
-        # Check for common PII patterns
+        # (pattern, description, category). A category is checked only if the
+        # tier redacts it, EXCEPT secrets which are always checked.
         pii_tests = [
-            (r'@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', "Email addresses"),
-            (r'\d{3}-\d{2}-\d{4}', "SSN"),
-            (r'\d{3}[-.\s]?\d{3}[-.\s]?\d{4}', "Phone"),
-            (r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', "IP address"),
+            (r'@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', "Email addresses", "email"),
+            (r'\d{3}-\d{2}-\d{4}', "SSN", "ssn"),  # secret — always checked
+            (r'\d{3}[-.\s]?\d{3}[-.\s]?\d{4}', "Phone", "phone"),
+            (r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', "IP address", "ipv4"),
         ]
 
-        for pattern, description in pii_tests:
+        failures = []
+        for pattern, description, category in pii_tests:
+            if category not in self._SECRET_CATEGORIES and category not in redact:
+                continue
             if re.search(pattern, sanitized_text):
                 failures.append(description)
 

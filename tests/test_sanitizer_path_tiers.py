@@ -29,7 +29,7 @@ from rag.indexing.sanitizer import Sanitizer
 # its regex: AKIA + 16 upper/digits; SSN ddd-dd-dddd; card in 4-4-4-4.
 _AWS = "AKIA" + "IOSFODNN7" + "EXAMPLE"          # AWS's own documented example key
 _SSN = "123" + "-45" + "-6789"
-_CARD = "4111 1111 1111 1111"
+_CARD = "4111" + " 1111" + " 1111" + " 1111"     # fragment-built so no PAN literal on disk
 
 # Synthetic client name — NOT a real client. Injected as a test client pattern
 # so we verify the mechanism ("client patterns always redact") without embedding
@@ -169,3 +169,43 @@ def test_unknown_tier_falls_back_to_strict_not_open():
     out = s.sanitize(SAMPLE, "note.md").sanitized_text
     for tok in IOC_TOKENS + PII_TOKENS + SECRET_TOKENS:
         assert redacted(out, tok), f"unknown tier must fail CLOSED (strict), leaked {tok!r}"
+
+
+@pytest.mark.parametrize("bad", [["standard"], {"tier": "standard"}, 123, {"path": "x"}])
+def test_non_string_config_fails_closed_without_crashing(bad):
+    """A YAML config can hand us a list/dict; membership tests must not raise,
+    and the result must be strict, not open."""
+    s = _make(tier=bad)
+    out = s.sanitize(SAMPLE, "note.md").sanitized_text
+    assert redacted(out, "evil-c2.net"), "non-string default_tier must fail closed to strict"
+    # Malformed path_tier rules must be dropped, not crash construction.
+    s2 = _make(tier="standard", path_tiers=[bad, "notadict", {"path": 1, "tier": "intel"}])
+    assert s2.sanitize(SAMPLE, "output/threat-intel/x.md").sanitized_text is not None
+
+
+# ---------------------------------------------------------------------------
+# validate_sanitization must agree with the tier it validates
+# ---------------------------------------------------------------------------
+
+def test_validate_is_tier_aware():
+    s = _make()
+    # intel output keeps email + IPv4 — validation for the intel tier must PASS.
+    intel_out = "beacon 185.220.101.44 from soc@example.org"
+    ok_intel, fails_intel = s.validate_sanitization(intel_out, tier="intel")
+    assert ok_intel, f"intel-tier text wrongly flagged: {fails_intel}"
+
+    # The same text under strict expectation must FAIL (email + IP present).
+    ok_strict, fails_strict = s.validate_sanitization(intel_out, tier="strict")
+    assert not ok_strict and "Email addresses" in fails_strict and "IP address" in fails_strict
+
+    # SSN (a secret) is caught on EVERY tier, including the most permissive.
+    ssn_leak = f"ref {_SSN} kept"
+    ok, fails = s.validate_sanitization(ssn_leak, tier="intel")
+    assert not ok and "SSN" in fails, "secrets must be validated on every tier"
+
+
+def test_validate_default_tier_is_strict_backward_compat():
+    """Calling validate without a tier keeps the old strict contract."""
+    s = _make()
+    text = "ip 10.0.0.1 email a@b.co"
+    assert s.validate_sanitization(text) == s.validate_sanitization(text, tier="strict")
