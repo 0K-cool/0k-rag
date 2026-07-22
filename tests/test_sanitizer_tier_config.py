@@ -70,3 +70,14 @@ def test_bad_config_values_fail_closed_via_constructor():
     s = Sanitizer(enable_ner=False, **Sanitizer.tier_kwargs_from_config(cfg))
     out = s.sanitize(SAMPLE, "output/x.md").sanitized_text
     assert "evil.net" not in out, "bad tier config must fall back to strict, not open"
+
+
+def test_scalar_path_tiers_does_not_crash_and_falls_closed():
+    # YAML `sanitize_path_tiers: true` forwards a truthy scalar; the constructor
+    # must reject it (not crash on `for rule in True`) and stay strict.
+    cfg = {"sanitize_default_tier": "standard", "sanitize_path_tiers": True}
+    s = Sanitizer(enable_ner=False, **Sanitizer.tier_kwargs_from_config(cfg))
+    # standard default still applies (scalar path_tiers dropped, not fatal),
+    # and construction did not raise.
+    out = s.sanitize(SAMPLE, "output/threat-intel/x.md").sanitized_text
+    assert _AWS not in out, "secrets still redact after scalar path_tiers dropped"

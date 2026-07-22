@@ -160,6 +160,11 @@ class Sanitizer:
                 f"'{self._DEFAULT_TIER}' (fail-closed)."
             )
         # Normalize path_tiers; drop malformed rules loudly rather than silently.
+        # A non-list value (e.g. YAML `sanitize_path_tiers: true`) would raise on
+        # the iteration below and crash indexing — reject it and fall closed.
+        if path_tiers is not None and not isinstance(path_tiers, list):
+            logger.warning(f"Ignoring non-list sanitizer path_tiers value: {path_tiers!r}")
+            path_tiers = []
         self._path_tiers: List[Tuple[str, str]] = []
         for rule in path_tiers or []:
             if not isinstance(rule, dict):
