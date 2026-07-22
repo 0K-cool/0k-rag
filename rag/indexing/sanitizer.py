@@ -7,6 +7,11 @@ Implements defense-in-depth sanitization for client data:
   - With allowlist filtering: known-safe terms skip NER redaction
 - Layer 3: Manual review workflow
 
+Per-path tiers (strict/standard/intel) scope which non-secret categories redact
+and whether NER runs, via `default_tier`/`path_tiers`. Real secrets and
+CLIENT_PATTERNS always redact regardless of tier. Most-specific path match wins.
+See the TIERS constant.
+
 Security Purpose (100% Local Architecture):
 - Data at rest protection (disk theft, malware, backups)
 - Compliance with client NDAs (PII removal requirements)
@@ -87,9 +92,10 @@ class Sanitizer:
     #              default when no tier is configured (fail-closed).
     #   standard — redact PII (email/phone) + secrets + client; KEEP IOCs
     #              (domain/ip/url/mac); skip NER. IOCs are intelligence, not PII.
-    #   intel    — redact secrets + client only; KEEP IOCs AND PII; skip NER.
-    #              For curated threat-intel/research where sender/recipient and
-    #              network indicators are the value.
+    #   intel    — redact secrets + client only; KEEP IOCs and CONTACT PII
+    #              (email/phone). SSN/credit-card are classed as secrets and
+    #              still redact. For curated threat-intel/research where
+    #              sender/recipient and network indicators are the value.
     _PII_CATEGORIES = frozenset({"email", "phone"})
     _IOC_CATEGORIES = frozenset({"ipv4", "ipv6", "mac_address", "domain", "url"})
     # Secret categories always redact regardless of tier; listed for clarity.
@@ -359,13 +365,36 @@ class Sanitizer:
             return False
         return any(skip in file_path for skip in self._skip_ner_paths)
 
+    # Redaction strength per tier (higher = more redacted). Used to break ties
+    # between equal-length path matches toward the safer tier.
+    _TIER_STRICTNESS = {"intel": 0, "standard": 1, "strict": 2}
+
     def _resolve_tier(self, file_path: str) -> str:
-        """First path_tier rule whose path is a substring of file_path wins;
-        otherwise the default tier. Fail-closed values were validated at init."""
+        """Most-specific matching path_tier rule wins (longest matching path),
+        NOT first-in-config-order. On equal-length ties, the stricter tier wins.
+        Falls back to the default tier when nothing matches.
+
+        Longest-match — not first-match, and not strictest-overall — is the
+        correct routing semantics here (cf. .gitignore / longest-prefix routing):
+          - a narrow `output/client-work/` -> strict rule beats a broad
+            `output/` -> intel rule regardless of config order, so client work
+            cannot be routed to a permissive tier by mis-ordering; AND
+          - a legitimate `output/threat-intel/` -> intel carve-out still overrides
+            a broad strict default, which strictest-overall would wrongly forbid.
+        Fail-closed values were validated at init."""
+        best_tier = self._default_tier
+        best_len = -1
         for path, tier in self._path_tiers:
-            if path in file_path:
-                return tier
-        return self._default_tier
+            if path not in file_path:
+                continue
+            plen = len(path)
+            if plen > best_len or (
+                plen == best_len
+                and self._TIER_STRICTNESS[tier] > self._TIER_STRICTNESS[best_tier]
+            ):
+                best_tier = tier
+                best_len = plen
+        return best_tier
 
     def sanitize(self, text: str, file_path: str = "") -> SanitizationResult:
         """
@@ -442,13 +471,18 @@ class Sanitizer:
         self, sanitized_text: str, tier: str = "strict"
     ) -> Tuple[bool, List[str]]:
         """
-        Validate that no tier-redacted PII remains after sanitization.
+        Spot-check that no tier-redacted PII/secret pattern remains.
 
-        Must agree with the tier used to sanitize: `standard` deliberately keeps
-        IPv4, and `intel` keeps email/phone/IPv4, so validating those against a
-        strict expectation would reject legitimate tiered output. Secrets (SSN)
-        are always checked. Defaults to `strict` so existing callers are
-        unchanged.
+        This is a REGEX SPOT-CHECK against a declared tier, NOT an exhaustive
+        proof of clean output and NOT an independent guarantee — it re-derives
+        the expected redaction from the caller-supplied `tier`, so it cannot
+        detect a tier misconfiguration, and NER-class entities (PERSON/ORG/GPE)
+        are not checked at all (regex cannot see them).
+
+        Tier-aware: `standard` keeps IPv4, `intel` keeps email/phone/IPv4, so
+        those are only checked on tiers that redact them. ALL five secret
+        categories (ssn/credit_card/aws_key/azure_key/api_key) are checked on
+        every tier, matching the always-redact invariant. Defaults to `strict`.
 
         Args:
             sanitized_text: Sanitized text to validate
@@ -459,13 +493,20 @@ class Sanitizer:
         """
         redact = set(self.TIERS.get(tier, self.TIERS[self._DEFAULT_TIER])["redact"])
 
-        # (pattern, description, category). A category is checked only if the
-        # tier redacts it, EXCEPT secrets which are always checked.
+        # (pattern, description, category). Checked when the tier redacts the
+        # category, OR always for secrets. Secret patterns mirror
+        # SANITIZATION_PATTERNS so a leak of any secret class is caught on any
+        # tier — the always-redact invariant made verifiable.
         pii_tests = [
             (r'@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', "Email addresses", "email"),
-            (r'\d{3}-\d{2}-\d{4}', "SSN", "ssn"),  # secret — always checked
             (r'\d{3}[-.\s]?\d{3}[-.\s]?\d{4}', "Phone", "phone"),
             (r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', "IP address", "ipv4"),
+            # secrets — always checked (category ∈ _SECRET_CATEGORIES)
+            (self.SANITIZATION_PATTERNS["ssn"], "SSN", "ssn"),
+            (self.SANITIZATION_PATTERNS["credit_card"], "Credit card", "credit_card"),
+            (self.SANITIZATION_PATTERNS["aws_key"], "AWS key", "aws_key"),
+            (self.SANITIZATION_PATTERNS["azure_key"], "Azure key", "azure_key"),
+            (self.SANITIZATION_PATTERNS["api_key"], "API key", "api_key"),
         ]
 
         failures = []

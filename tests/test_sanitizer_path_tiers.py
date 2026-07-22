@@ -26,10 +26,14 @@ import pytest
 from rag.indexing.sanitizer import Sanitizer
 
 # Built from fragments so no literal secret sits in the file. Each still matches
-# its regex: AKIA + 16 upper/digits; SSN ddd-dd-dddd; card in 4-4-4-4.
+# its regex. AWS = AKIA + 16 upper/digit; SSN ddd-dd-dddd; card 4-4-4-4;
+# azure = 88 base64 chars + "=="; api_key = api_key="<32+ chars>".
 _AWS = "AKIA" + "IOSFODNN7" + "EXAMPLE"          # AWS's own documented example key
 _SSN = "123" + "-45" + "-6789"
 _CARD = "4111" + " 1111" + " 1111" + " 1111"     # fragment-built so no PAN literal on disk
+_AZURE = ("A1b2" * 22) + "=="                     # 88 chars + == matches azure_key
+_APIKEY = 'api_key="' + ("k9X2" * 8) + '"'        # 32-char value matches api_key
+_IPV6 = "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
 
 # Synthetic client name — NOT a real client. Injected as a test client pattern
 # so we verify the mechanism ("client patterns always redact") without embedding
@@ -39,16 +43,15 @@ _CLIENT_PATTERN = {"synthetic_test_client": r"(?i)northwind\s+test\s+clinic"}
 
 SAMPLE = (
     f"Contact soc@example.org or call 787-555-0100. "
-    f"C2 beacon to evil-c2.net and 185.220.101.44 over ipv6 "
-    f"2001:0db8:85a3:0000:0000:8a2e:0370:7334, mac 00:1b:44:11:3a:b7, "
-    f"staging at https://cdn-abuse.example/payload. "
-    f"Leaked {_AWS} and SSN {_SSN}, card {_CARD}. "
+    f"C2 beacon to evil-c2.net and 185.220.101.44 over ipv6 {_IPV6}, "
+    f"mac 00:1b:44:11:3a:b7, staging at https://cdn-abuse.example/payload. "
+    f"Leaked {_AWS} and SSN {_SSN}, card {_CARD}, azure {_AZURE}, {_APIKEY}. "
     f"Report drafted at {_CLIENT_NAME} by Caleb Sima."
 )
 
-IOC_TOKENS = ["evil-c2.net", "185.220.101.44", "00:1b:44:11:3a:b7", "cdn-abuse.example"]
+IOC_TOKENS = ["evil-c2.net", "185.220.101.44", _IPV6, "00:1b:44:11:3a:b7", "cdn-abuse.example"]
 PII_TOKENS = ["soc@example.org", "787-555-0100"]
-SECRET_TOKENS = [_AWS, _SSN, _CARD]
+SECRET_TOKENS = [_AWS, _SSN, _CARD, _AZURE, _APIKEY]
 
 
 def _make(tier=None, path_tiers=None):
@@ -139,6 +142,38 @@ def test_client_path_forces_full_redaction_even_under_standard_default():
 
 
 # ---------------------------------------------------------------------------
+# Tier resolution ordering — the leak all four review agents flagged.
+# Resolution must be MOST-SPECIFIC-path-wins, independent of config order, so a
+# broad permissive rule listed first cannot shadow a narrow strict rule.
+# ---------------------------------------------------------------------------
+
+def test_narrow_strict_rule_wins_over_broad_intel_prefix_regardless_of_order():
+    # Broad intel rule listed FIRST, narrow strict rule second. First-match-wins
+    # would resolve a client-work file to intel and leak client email/phone.
+    s = _make(tier="standard", path_tiers=[
+        {"path": "output/",             "tier": "intel"},
+        {"path": "output/client-work/", "tier": "strict"},
+    ])
+    out = s.sanitize(SAMPLE, "output/client-work/acme/report.md").sanitized_text
+    for tok in IOC_TOKENS + PII_TOKENS + SECRET_TOKENS + [_CLIENT_NAME]:
+        assert redacted(out, tok), f"client-work must resolve strict, not intel; leaked {tok!r}"
+
+
+def test_specific_permissive_carveout_still_overrides_broad_strict():
+    # The inverse the fix must PRESERVE: a narrow intel carve-out under a broad
+    # strict default must still resolve intel (most-specific wins, not strictest).
+    s = _make(tier="standard", path_tiers=[
+        {"path": "output/",              "tier": "strict"},
+        {"path": "output/threat-intel/", "tier": "intel"},
+    ])
+    out = s.sanitize(SAMPLE, "output/threat-intel/hf.md").sanitized_text
+    assert kept(out, "evil-c2.net"), "narrow intel carve-out must win over broad strict"
+    assert kept(out, "soc@example.org")
+    for tok in SECRET_TOKENS:
+        assert redacted(out, tok), "secrets still redact even in the carve-out"
+
+
+# ---------------------------------------------------------------------------
 # NER routing per tier (needs the spaCy model; skipped if unavailable)
 # ---------------------------------------------------------------------------
 
@@ -204,8 +239,29 @@ def test_validate_is_tier_aware():
     assert not ok and "SSN" in fails, "secrets must be validated on every tier"
 
 
+def test_validate_catches_all_five_secret_classes_on_intel():
+    """The always-redact invariant must be VERIFIABLE: validate flags every
+    secret class even on the most permissive tier, not just SSN."""
+    s = _make()
+    for leak, label in [
+        (_AWS, "AWS key"), (_SSN, "SSN"), (_CARD, "Credit card"),
+        (_AZURE, "Azure key"), (_APIKEY, "API key"),
+    ]:
+        ok, fails = s.validate_sanitization(f"leaked {leak} here", tier="intel")
+        assert not ok, f"validate missed secret {label} on intel tier"
+
+
 def test_validate_default_tier_is_strict_backward_compat():
     """Calling validate without a tier keeps the old strict contract."""
     s = _make()
     text = "ip 10.0.0.1 email a@b.co"
     assert s.validate_sanitization(text) == s.validate_sanitization(text, tier="strict")
+
+
+def test_malformed_path_tier_with_bogus_tier_name_is_dropped():
+    """A well-formed dict with an unknown tier string is dropped (not applied),
+    so the path falls through to the default tier — fails closed, not open."""
+    s = _make(tier="strict", path_tiers=[{"path": "output/threat-intel/", "tier": "strickt"}])
+    out = s.sanitize(SAMPLE, "output/threat-intel/x.md").sanitized_text
+    # bogus intel-ish rule dropped -> strict default applies -> IOCs redacted
+    assert redacted(out, "evil-c2.net"), "dropped bogus rule must fall to strict, not open"
