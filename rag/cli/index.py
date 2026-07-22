@@ -102,6 +102,10 @@ Examples:
         from rag.indexing.document_loader import DocumentLoader
         from rag.indexing.sanitizer import Sanitizer
 
+        # Per-path redaction tiers (sanitize_default_tier / sanitize_path_tiers).
+        # Absent -> {} -> Sanitizer keeps its strict default (no opt-in, no change).
+        tier_kwargs = Sanitizer.tier_kwargs_from_config(config['indexing'])
+
         # Initialize indexer
         print(f"Initializing 0K-RAG indexer for {project_name}...", file=sys.stderr)
         indexer = KnowledgeBaseIndexer(db_path=db_path)
@@ -110,7 +114,7 @@ Examples:
         # Initialize document loader and sanitizer
         loader = DocumentLoader()
         sanitizer = (
-            Sanitizer(skip_ner_paths=sanitize_ner_skip_paths)
+            Sanitizer(skip_ner_paths=sanitize_ner_skip_paths, **tier_kwargs)
             if enable_sanitization
             else None
         )

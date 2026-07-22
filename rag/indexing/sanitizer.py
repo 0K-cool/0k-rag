@@ -160,6 +160,11 @@ class Sanitizer:
                 f"'{self._DEFAULT_TIER}' (fail-closed)."
             )
         # Normalize path_tiers; drop malformed rules loudly rather than silently.
+        # A non-list value (e.g. YAML `sanitize_path_tiers: true`) would raise on
+        # the iteration below and crash indexing — reject it and fall closed.
+        if path_tiers is not None and not isinstance(path_tiers, list):
+            logger.warning(f"Ignoring non-list sanitizer path_tiers value: {path_tiers!r}")
+            path_tiers = []
         self._path_tiers: List[Tuple[str, str]] = []
         for rule in path_tiers or []:
             if not isinstance(rule, dict):
@@ -181,6 +186,26 @@ class Sanitizer:
 
         # Load allowlist on init
         self._load_allowlist()
+
+    @staticmethod
+    def tier_kwargs_from_config(indexing_config: Dict) -> Dict:
+        """Extract tier constructor kwargs from an `.0k-rag.yml` [indexing] dict.
+
+        Reads `sanitize_default_tier` (str) and `sanitize_path_tiers`
+        (list of {path, tier}). Returns only the keys that are present, so a
+        config with neither yields `{}` and the Sanitizer keeps its strict
+        default — a deployment that has not opted in is never loosened. Bad
+        values are not validated here; the Sanitizer constructor fails them
+        closed (unknown tier -> strict, malformed rule -> dropped).
+        """
+        kwargs: Dict = {}
+        default_tier = indexing_config.get("sanitize_default_tier")
+        if default_tier is not None:
+            kwargs["default_tier"] = default_tier
+        path_tiers = indexing_config.get("sanitize_path_tiers")
+        if path_tiers:
+            kwargs["path_tiers"] = path_tiers
+        return kwargs
 
     def _load_allowlist(self) -> None:
         """Load NER allowlist from JSON config with TTL cache"""
