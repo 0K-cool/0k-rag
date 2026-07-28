@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+from urllib.parse import urlparse
 import threading
 import time
 from datetime import datetime
@@ -60,6 +61,15 @@ class WebhookNotifier:
         timeout: int = 10,
     ):
         self.url = re.sub(r'\$\{([^}]+)\}', lambda m: os.environ.get(m.group(1), m.group(0)), url)
+        # Validate the scheme AFTER env expansion, not before: the URL is built
+        # by substituting ${ENV_VAR}, so the scheme itself can come from the
+        # environment. Without this, a file:// or gopher:// value reaches
+        # urlopen and reads local files instead of POSTing a webhook.
+        _scheme = urlparse(self.url).scheme.lower()
+        if _scheme not in ("http", "https"):
+            raise ValueError(
+                f"Webhook URL must be http or https, got {_scheme or 'no scheme'!r}"
+            )
         self.template = WEBHOOK_TEMPLATES.get(template, WEBHOOK_TEMPLATES["generic"])
         self.notify_stages = notify_stages
         self.min_interval = min_interval
@@ -77,6 +87,9 @@ class WebhookNotifier:
             data = json.dumps(payload).encode('utf-8')
             headers = {"Content-Type": self.template["content_type"], **self.headers}
             request = Request(self.url, data=data, headers=headers, method="POST")
+            # Scheme is validated to http/https in __init__ (after env
+            # expansion). The rule cannot see that guard from here.
+            # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
             with urlopen(request, timeout=self.timeout) as response:
                 return response.status < 400
         except Exception as e:

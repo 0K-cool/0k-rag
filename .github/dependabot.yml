@@ -10,6 +10,12 @@ version: 2
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
+    # Wait a week before a newly published version is proposed. A compromised
+    # release is usually caught and yanked within days; without a cooldown
+    # Dependabot opens the PR within hours of publication, which is the window
+    # that attack depends on.
+    cooldown:
+      default-days: 7
     schedule:
       interval: "weekly"
       day: "monday"
@@ -20,6 +26,12 @@ updates:
 
   - package-ecosystem: "pip"
     directory: "/"
+    # Wait a week before a newly published version is proposed. A compromised
+    # release is usually caught and yanked within days; without a cooldown
+    # Dependabot opens the PR within hours of publication, which is the window
+    # that attack depends on.
+    cooldown:
+      default-days: 7
     schedule:
       interval: "weekly"
       day: "monday"
