@@ -50,7 +50,7 @@ jobs:
       - name: Run Claude Code
         id: claude
         # v1 snapshot 2026-04-22 (Dependabot-tracked)
-        uses: anthropics/claude-code-action@e90deca47693f9457b72f2b53c17d7c445a87342 # v1.0.171
+        uses: anthropics/claude-code-action@5ef2e550a465a721f4f45e4a7d3c340c873e1dcc # v1.0.190
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           additional_permissions: |
